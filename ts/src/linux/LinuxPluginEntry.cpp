@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr int kPluginApiVersion = 21;
+constexpr int kPluginApiVersion = 26;
 std::unique_ptr<tfar::LinuxBridgeServer> bridgeServer;
 
 char* copyPluginString(const char* text) {

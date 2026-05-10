@@ -756,8 +756,8 @@ int ts3plugin_apiVersion() {
         case 3: retVersion = 23; break;
         case 4: retVersion = 23; break;
         case 5: retVersion = 23; break;
-        case 6: retVersion = 21; break;
-        default: retVersion = PLUGIN_API_VERSION;
+        case 6: retVersion = 26; break;
+        default: retVersion = 26;
     }
 
     if (retVersion >= 23) {
