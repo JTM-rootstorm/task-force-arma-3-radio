@@ -23,6 +23,8 @@ build/tfar-linux/TFAR_linux_x64.so
 
 This target is a Linux bridge skeleton for native load/shutdown and bridge protocol work. The full TFAR runtime still needs Linux portability work in the wider audio/UI/plugin source before this can be called playable.
 
+The supported Linux TeamSpeak baseline is TeamSpeak 3 Client 3.6.2. It still expects plugin API 21, so `ts3plugin_apiVersion()` must return 21 for that client line.
+
 ## Proton Bridge DLL
 
 Build `extensions/task_force_radio_pipe/task_force_radio_pipe.vcxproj` as usual, but add this preprocessor definition for the Proton bridge variant:

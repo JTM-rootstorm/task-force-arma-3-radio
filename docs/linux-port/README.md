@@ -33,6 +33,8 @@ The bridge preserves existing TFAR command strings. Async commands keep the lega
 
 The experimental `TFAR_linux_x64.so` target currently proves native load/shutdown and bridge listen behavior. It does not yet package the full TFAR audio/radio runtime into a playable Linux TeamSpeak plugin.
 
+The Linux target baseline is TeamSpeak 3 Client 3.6.2, which still uses TeamSpeak plugin API 21. The plugin must report API 21 for that client line.
+
 ## Defaults
 
 - Host: `127.0.0.1`

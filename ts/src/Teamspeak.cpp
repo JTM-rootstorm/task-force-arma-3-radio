@@ -731,7 +731,7 @@ int ts3plugin_apiVersion() {
     const short patch = HIWORD(vsfi->dwFileVersionLS);
     delete[] versionInfo;
 
-    int retVersion = 22;
+    int retVersion = PLUGIN_API_VERSION;
 
     switch (minor) {
         case 0: {
@@ -756,8 +756,8 @@ int ts3plugin_apiVersion() {
         case 3: retVersion = 23; break;
         case 4: retVersion = 23; break;
         case 5: retVersion = 23; break;
-        // 3.6.0 forces minimum 26
-        default: retVersion = 26;
+        case 6: retVersion = 21; break;
+        default: retVersion = PLUGIN_API_VERSION;
     }
 
     if (retVersion >= 23) {
