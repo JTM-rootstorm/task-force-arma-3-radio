@@ -729,6 +729,7 @@
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="pipe_handler.cpp" />
     <ClCompile Include="PlaybackHandler.cpp" />
+    <ClCompile Include="platform\Platform.cpp" />
     <ClCompile Include="plugin.cpp" />
     <ClCompile Include="profilers.cpp" />
     <ClCompile Include="ProfilerTracy.cpp" />
@@ -738,6 +739,7 @@
     <ClCompile Include="task_force_radio.cpp" />
     <ClCompile Include="Teamspeak.cpp" />
     <ClCompile Include="TextRenderer.cpp" />
+    <ClCompile Include="transport\WinSharedMemoryTransport.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\clientlib_publicdefinitions.h" />
@@ -784,6 +786,7 @@
     <ClInclude Include="Logger.hpp" />
     <ClInclude Include="pipe_handler.hpp" />
     <ClInclude Include="PlaybackHandler.hpp" />
+    <ClInclude Include="platform\Platform.hpp" />
     <ClInclude Include="profilers.hpp" />
     <ClInclude Include="ProfilerTracy.hpp" />
     <ClInclude Include="RadioEffect.hpp" />
@@ -797,6 +800,9 @@
     <ClInclude Include="task_force_radio.hpp" />
     <ClInclude Include="Teamspeak.hpp" />
     <ClInclude Include="TextRenderer.h" />
+    <ClInclude Include="transport\BridgeProtocol.hpp" />
+    <ClInclude Include="transport\IGameTransport.hpp" />
+    <ClInclude Include="transport\WinSharedMemoryTransport.hpp" />
     <ClInclude Include="version.h" />
   </ItemGroup>
   <ItemGroup>

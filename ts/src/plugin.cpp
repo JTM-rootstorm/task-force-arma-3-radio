@@ -32,11 +32,18 @@
 #include "helpers.hpp"
 #include "PlaybackHandler.hpp"
 #include "Logger.hpp"
-#include "SharedMemoryHandler.hpp"
 #include "Teamspeak.hpp"
 #include <chrono>
+#include <memory>
 #include "version.h"
 #include "profilers.hpp"
+#include "platform/Platform.hpp"
+#include "transport/IGameTransport.hpp"
+#ifdef _WIN32
+#include "transport/WinSharedMemoryTransport.hpp"
+#else
+#include "transport/LinuxBridgeServer.hpp"
+#endif
 
 #define PATH_BUFSIZE 512
 
@@ -134,7 +141,7 @@ void ServiceThread() {
 
     while (!exitThread) {
         if (!Teamspeak::isConnected()) {  //If not connected we don't have any clientData anyway
-            Sleep(500);
+            tfar::platform::sleepFor(500ms);
             continue;
         }
         if ((std::chrono::system_clock::now() - lastCheckForExpire.load()) > MILLIS_TO_EXPIRE) {
@@ -159,77 +166,76 @@ void ServiceThread() {
             updateUserStatusInfo(true);
             lastInfoUpdate = std::chrono::system_clock::now();
         }
-        Sleep(100);
+        tfar::platform::sleepFor(100ms);
     }
 }
-#define USE_SHAREDMEM
+std::unique_ptr<tfar::IGameTransport> createGameTransport() {
+#ifdef _WIN32
+    return std::make_unique<tfar::WinSharedMemoryTransport>();
+#else
+    return std::make_unique<tfar::LinuxBridgeServer>();
+#endif
+}
+
 void PipeThread() {
-#ifdef USE_SHAREDMEM
-    SharedMemoryHandler pipeHandler;
-
-
-    pipeHandler.onDisconnected.connect(
+    auto transport = createGameTransport();
+    transport->onDisconnected.connect(
         [&]() {
-        OutputDebugStringA("disconnected\n");
+        tfar::platform::debugLog("disconnected\n");
         pipeConnected = false;
         updateUserStatusInfo(true);
         TFAR::getInstance().onGameDisconnected();
     });
 
-    pipeHandler.onConnected.connect(
+    transport->onConnected.connect(
         [&]() {
-        OutputDebugStringA("connected\n");
+        tfar::platform::debugLog("connected\n");
         pipeConnected = true;
         TFAR::getInstance().onGameConnected();
     });
 
-#else
-    pipe_handler pipeHandler;
-#endif
+    if (!transport->initialize()) {
+        Logger::log(LoggerTypes::teamspeakClientlog, "game transport failed to initialize", LogLevel_ERROR);
+        return;
+    }
 
 
     std::vector<std::string> commands;
     while (!exitThread) {
         ProfileFunction;
 
-        if (!pipeHandler.isConnected()) { //Need this call! It sets the lastPluginTick variable and causes on(dis)Connected events
+        if (!transport->isConnected()) { // Need this call; it updates transport connection state.
             ProfileScopeN("no connect sleep");
             std::this_thread::sleep_for(100ms);
             continue;
         }
 
-    #ifdef USE_SHAREDMEM
-        pipeHandler.setConfigNeedsRefresh(TFAR::config.needsRefresh());//#TODO Signal/Slot ?
-    #endif
+        transport->setConfigNeedsRefresh(TFAR::config.needsRefresh());//#TODO Signal/Slot ?
 
         commands.resize(1);
-        // pipeHandler.getDataMultiple
-        if (!pipeHandler.getData(commands[0], 20ms))//This will still wait. 1ms if SHAMEM error. 20ms if game unconnected
+        auto command = transport->receiveCommand(20ms);
+        if (!command)
             continue;
 
-        for (auto& command : commands) {
+        commands[0] = std::move(command->payload);
+        for (auto& commandText : commands) {
 
             ProfileScopeN("got command");
             //speedTest gameCommandIn("gameCommandInPipe", false);
 
-            if (command.back() == '~') {//a ~ at the end identifies an Async call
-                command.pop_back();//removes ~ from end
-#ifdef USE_SHAREDMEM
-                TFAR::getCommandProcessor()->queueCommand(command);
-#else
-                bool dataReturned = false;
-                if (pipeHandler.sendData("OK", 2)) {
-                    log_string("Info to ARMA send async", LogLevel_DEBUG);
-                    dataReturned = true;
-                } else {
-                    log_string("Can't send info to ARMA async", LogLevel_ERROR);
-                }
-#endif
+            if (command->async) {
+                TFAR::getCommandProcessor()->queueCommand(commandText);
             } else {
                 //gameCommandIn.reset();
-#ifdef USE_SHAREDMEM
-                const auto commandResult = TFAR::getCommandProcessor()->processCommand(command);
-                pipeHandler.sendData(commandResult);
+                const auto start = std::chrono::steady_clock::now();
+                const auto commandResult = TFAR::getCommandProcessor()->processCommand(commandText);
+                transport->sendResponse(command->sequence, commandResult);
+#ifdef TFAR_ENABLE_BRIDGE_VERBOSE_LOGS
+                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
+                log_string("bridge command seq=" + std::to_string(command->sequence) +
+                    " bytes=" + std::to_string(commandText.size()) +
+                    " duration_ms=" + std::to_string(elapsed.count()), LogLevel_DEBUG);
+#endif
                 //if (gameCommandIn.getCurrentElapsedTime().count() >
                 //#ifdef _DEBUG
                 //    400)
@@ -237,23 +243,13 @@ void PipeThread() {
                 //    200)
                 //#endif
                 //    log_string("gameinteraction " + std::to_string(gameCommandIn.getCurrentElapsedTime().count()) + command, LogLevel_INFO);   //#Release remove logging and creation variable
-#else
-                if (gameCommandIn.getCurrentElapsedTime().count() > 200)
-                    log_string("gameinteraction " + std::to_string(gameCommandIn.getCurrentElapsedTime().count()) + command, LogLevel_INFO);   //#Release remove logging and creation variable
-
-                if (!dataReturned) {
-                    if (pipeHandler.sendData(commandResult)) {
-                        log_string("Info to ARMA send", LogLevel_DEBUG);
-                    } else {
-                        log_string("Can't send info to ARMA", LogLevel_ERROR);
-                    }
-                }
-#endif
 
             }
 
         }
     }
+
+    transport->shutdown();
 }
 
 int pttCallback([[maybe_unused]] void *arg, int argc, char **argv, [[maybe_unused]] char **azColName) {
@@ -298,17 +294,8 @@ int ts3plugin_init() {
     }
 
 
-    if (
-        GetModuleHandleA("task_force_radio_win32") ||
-        GetModuleHandleA("task_force_radio_win64") ||
-        GetModuleHandleA("TFAR_dev_win64") ||
-        GetModuleHandleA("TFAR_dev_win64")
-        ) {
-        MessageBoxA(0,
-            (std::string("Multiple TFAR plugins are loaded. You probably need to disable the old \"Task Force Arma 3 Radio\"(task_force_radio_winXX.dll) plugin and delete the dll file manually.\n"
-            "The plugins are probably in this directory: "sv) + std::string(pluginPath)).c_str(),
-            "Task Force Arrowhead Radio",
-            MB_OK | MB_ICONHAND);
+    if (tfar::platform::hasLoadedLegacyTfarPlugin()) {
+        tfar::platform::showDuplicatePluginWarning(pluginPath);
         return 0;
     }
 
@@ -323,8 +310,11 @@ int ts3plugin_init() {
 #endif
 #if !ENABLE_API_PROFILER && ENABLE_PLUGIN_LOGS
     //#TODO disable both logs on release. Maybe add 2k ring buffered logger for /tfar full
-    Logger::registerLogger(LoggerTypes::pluginCommands, std::make_shared<FileLogger>(std::string(getenv("appdata")) + "\\TS3Client\\TFAR_pluginCommands.log"));
-    Logger::registerLogger(LoggerTypes::gameCommands, std::make_shared<FileLogger>(std::string(getenv("appdata")) + "\\TS3Client\\TFAR_gameCommands.log"));
+    const auto configDirectory = tfar::platform::userConfigDirectory();
+    if (!configDirectory.empty()) {
+        Logger::registerLogger(LoggerTypes::pluginCommands, std::make_shared<FileLogger>(tfar::platform::appendFileName(configDirectory, "TFAR_pluginCommands.log")));
+        Logger::registerLogger(LoggerTypes::gameCommands, std::make_shared<FileLogger>(tfar::platform::appendFileName(configDirectory, "TFAR_gameCommands.log")));
+    }
 #endif
 
     TFAR::getServerDataDirectory();//initializes the ServerdataDirectory so it connects its Slots to TFAR's Signals
@@ -341,13 +331,13 @@ int ts3plugin_init() {
         TFAR::getInstance().m_gameData.currentDataFrame = INVALID_DATA_FRAME;
     });
 
-    char path[MAX_PATH];
-    ts3Functions.getConfigPath(path, MAX_PATH);
-    strcat_s(path, MAX_PATH, "settings.db");
+    char path[PATH_BUFSIZE];
+    ts3Functions.getConfigPath(path, PATH_BUFSIZE);
+    const auto settingsPath = tfar::platform::appendFileName(path, "settings.db");
 
     sqlite3 *db = nullptr;
     char *err = nullptr;
-    if (!sqlite3_open(path, &db)) {
+    if (!sqlite3_open(settingsPath.c_str(), &db)) {
         sqlite3_exec(db, "SELECT value FROM Profiles WHERE key='Capture/Default/PreProcessing'", pttCallback, nullptr, &err);
         sqlite3_close(db);
     }

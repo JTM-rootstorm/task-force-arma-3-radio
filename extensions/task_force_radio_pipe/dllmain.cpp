@@ -1,14 +1,22 @@
 // dllmain.cpp: Defines the entry point for the DLL application.
 #include "stdafx.h"
 #include "NamedPipeTransfer.h"
+#ifdef TFAR_USE_SOCKET_BRIDGE
+#include "SocketTransfer.h"
+#else
 #include "SharedMemoryTransfer.h"
+#endif
 
 const wchar_t* pipeName = PIPE_NAME;
 //NamedPipeTransfer transfer;
+#ifdef TFAR_USE_SOCKET_BRIDGE
+extern SocketTransfer transfer;
+#else
 SharedMemoryTransfer transfer;
+#endif
 
 bool isDebugArmaInstance() {
-	return std::wstring(GetCommandLine()).find(DEBUG_PARAMETER) != std::string::npos;
+	return std::wstring(GetCommandLineW()).find(DEBUG_PARAMETER) != std::wstring::npos;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,
@@ -75,4 +83,3 @@ int main(int argc, char * argv[]) {
 	}
 	DllMain(0, DLL_PROCESS_DETACH, 0);
 }
-

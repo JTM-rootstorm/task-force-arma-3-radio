@@ -2,8 +2,13 @@
 //
 #include "stdafx.h"
 #include "NamedPipeTransfer.h"
+#ifdef TFAR_USE_SOCKET_BRIDGE
+#include "SocketTransfer.h"
+extern SocketTransfer transfer;
+#else
 #include "SharedMemoryTransfer.h"
 extern SharedMemoryTransfer transfer;
+#endif
 //extern NamedPipeTransfer transfer;
 
 void __stdcall RVExtension(char *output, int outputSize, const char *input) {

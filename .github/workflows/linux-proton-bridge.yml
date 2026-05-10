@@ -1,0 +1,44 @@
+name: Linux Proton Bridge
+
+on:
+  push:
+    branches:
+      - master
+      - "codex-*"
+  pull_request:
+
+jobs:
+  linux-plugin-and-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S ts -B build/tfar-linux -DTFAR_LINUX_PLUGIN=ON -DTFAR_BRIDGE_PROTOCOL_TESTS=ON
+      - name: Build
+        run: cmake --build build/tfar-linux --config Release
+      - name: Test
+        run: ctest --test-dir build/tfar-linux --output-on-failure
+      - name: Upload Linux plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TFAR_linux_x64
+          path: build/tfar-linux/TFAR_linux_x64.so
+
+  windows-proton-bridge-dll:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build socket bridge DLL
+        run: >
+          msbuild extensions/task_force_radio_pipe/task_force_radio_pipe.vcxproj
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:PlatformToolset=v143
+          /p:WindowsTargetPlatformVersion=10.0
+          /p:TfarSocketBridge=true
+      - name: Upload Proton bridge DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: task_force_radio_pipe_x64
+          path: extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll
