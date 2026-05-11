@@ -14,6 +14,8 @@ The bridge keeps those semantics by translating the legacy suffix into `SyncComm
 
 Windows native remains the reference behavior until direct speech and radio gameplay are validated under Proton with native Linux TeamSpeak.
 
+The Proton socket transport now lives in `tfar_proton_bridge_x64.dll`. The Arma-facing `task_force_radio_pipe_x64.dll` selects shared memory on native Windows and loads the adjacent bridge DLL only under Wine/Proton detection or `TFAR_FORCE_PROTON_BRIDGE=1`.
+
 ## Phase 4 Linux Bridge Baseline
 
 The Linux `TFAR_linux_x64.so` target now links the full TFAR `CommandProcessor`, TeamSpeak callback surface, Clunk audio stack, DSP filters, SQLite, and the loopback `LinuxBridgeServer`.

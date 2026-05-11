@@ -1,19 +1,8 @@
 // dllmain.cpp: Defines the entry point for the DLL application.
 #include "stdafx.h"
-#include "NamedPipeTransfer.h"
-#ifdef TFAR_USE_SOCKET_BRIDGE
-#include "SocketTransfer.h"
-#else
-#include "SharedMemoryTransfer.h"
-#endif
+#include "RuntimeTransportSelector.h"
 
 const wchar_t* pipeName = PIPE_NAME;
-//NamedPipeTransfer transfer;
-#ifdef TFAR_USE_SOCKET_BRIDGE
-extern SocketTransfer transfer;
-#else
-SharedMemoryTransfer transfer;
-#endif
 
 bool isDebugArmaInstance() {
 	return std::wstring(GetCommandLineW()).find(DEBUG_PARAMETER) != std::wstring::npos;
@@ -25,12 +14,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 ) {
 	switch (ul_reason_for_call) {
 		case DLL_PROCESS_ATTACH:
-			// Create a pipe to send data
 			if (isDebugArmaInstance()) pipeName = DEBUG_PIPE_NAME;
-			transfer.open();
 			break;
 		case DLL_PROCESS_DETACH:
-			transfer.close();
+			tfar_pipe::shutdownRuntime();
 			break;
 		case DLL_THREAD_ATTACH:
 		case DLL_THREAD_DETACH:

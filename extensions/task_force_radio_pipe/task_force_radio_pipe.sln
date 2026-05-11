@@ -5,6 +5,8 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "task_force_radio_pipe", "task_force_radio_pipe.vcxproj", "{41806AF2-00B0-42AE-B5AF-19C65C8B5C8D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tfar_proton_bridge", "..\tfar_proton_bridge\tfar_proton_bridge.vcxproj", "{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -27,6 +29,18 @@ Global
 		{41806AF2-00B0-42AE-B5AF-19C65C8B5C8D}.Release|Win32.Build.0 = Release|Win32
 		{41806AF2-00B0-42AE-B5AF-19C65C8B5C8D}.Release|x64.ActiveCfg = Release|x64
 		{41806AF2-00B0-42AE-B5AF-19C65C8B5C8D}.Release|x64.Build.0 = Release|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Debug|Win32.Build.0 = Debug|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Debug|x64.ActiveCfg = Debug|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Debug|x64.Build.0 = Debug|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.exe|Win32.ActiveCfg = Debug|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.exe|Win32.Build.0 = Debug|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.exe|x64.ActiveCfg = Debug|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.exe|x64.Build.0 = Debug|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Release|Win32.ActiveCfg = Release|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Release|Win32.Build.0 = Release|Win32
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Release|x64.ActiveCfg = Release|x64
+		{3F23894E-E6EB-46AF-9DB1-3E5A58844AA8}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

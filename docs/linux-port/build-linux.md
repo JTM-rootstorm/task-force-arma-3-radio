@@ -32,15 +32,24 @@ ldd -r build/tfar-linux/TFAR_linux_x64.so
 
 The supported Linux TeamSpeak baseline is TeamSpeak 3 Client 3.6.2. It expects plugin API 26, so `ts3plugin_apiVersion()` must return 26 for that client line.
 
-## Proton Bridge DLL
+## Runtime Loader And Proton Bridge DLLs
 
-Build `extensions/task_force_radio_pipe/task_force_radio_pipe.vcxproj` as usual, but add this preprocessor definition for the Proton bridge variant:
+Build both Windows-side artifacts with the Visual Studio solution:
 
-```text
-TFAR_USE_SOCKET_BRIDGE
+```powershell
+msbuild extensions\task_force_radio_pipe\task_force_radio_pipe.sln /p:Configuration=Release /p:Platform=x64
 ```
 
-Without that definition, the DLL keeps the native Windows shared-memory path.
+Expected artifacts:
+
+```text
+extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll
+extensions/tfar_proton_bridge/x64/Release/tfar_proton_bridge_x64.dll
+```
+
+`task_force_radio_pipe_x64.dll` remains the Arma extension. `tfar_proton_bridge_x64.dll` must be installed beside it for the Proton socket path.
+
+Native Windows uses shared memory by default. Proton/Wine auto-detection and the force/disable variables are documented in `runtime-loader.md`.
 
 Optional bridge settings for Proton:
 

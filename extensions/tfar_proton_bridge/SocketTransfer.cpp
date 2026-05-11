@@ -423,7 +423,3 @@ std::uint16_t SocketTransfer::bridgePort() const {
 std::string SocketTransfer::bridgeToken() const {
     return getenvString("TFAR_BRIDGE_TOKEN");
 }
-
-#ifdef TFAR_USE_SOCKET_BRIDGE
-SocketTransfer transfer;
-#endif

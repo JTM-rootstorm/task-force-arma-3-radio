@@ -29,16 +29,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
-      - name: Build socket bridge DLL
+      - name: Build loader and Proton bridge DLLs
         run: >
-          msbuild extensions/task_force_radio_pipe/task_force_radio_pipe.vcxproj
+          msbuild extensions/task_force_radio_pipe/task_force_radio_pipe.sln
           /p:Configuration=Release
           /p:Platform=x64
           /p:PlatformToolset=v143
           /p:WindowsTargetPlatformVersion=10.0
-          /p:TfarSocketBridge=true
-      - name: Upload Proton bridge DLL
+      - name: Check Windows exports
+        shell: pwsh
+        run: |
+          $pipeExports = (& dumpbin /exports extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll) -join "`n"
+          if ($pipeExports -notmatch "\sRVExtension\s*$") {
+            throw "task_force_radio_pipe_x64.dll does not export RVExtension"
+          }
+
+          $bridgeExports = (& dumpbin /exports extensions/tfar_proton_bridge/x64/Release/tfar_proton_bridge_x64.dll) -join "`n"
+          foreach ($name in @("TFARBridge_GetApiVersion", "TFARBridge_RVExtension", "TFARBridge_Shutdown")) {
+            if ($bridgeExports -notmatch $name) {
+              throw "tfar_proton_bridge_x64.dll does not export $name"
+            }
+          }
+          if ($bridgeExports -match "\sRVExtension\s*$") {
+            throw "tfar_proton_bridge_x64.dll must not export plain RVExtension"
+          }
+      - name: Upload Arma loader DLL
         uses: actions/upload-artifact@v4
         with:
           name: task_force_radio_pipe_x64
           path: extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll
+      - name: Upload Proton bridge DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfar_proton_bridge_x64
+          path: extensions/tfar_proton_bridge/x64/Release/tfar_proton_bridge_x64.dll
