@@ -72,7 +72,8 @@ private:
 		}
 
 		const std::size_t limit = static_cast<std::size_t>(outputSize - 1);
-		const std::size_t count = std::min(std::strlen(text), limit);
+		const std::size_t textLength = std::strlen(text);
+		const std::size_t count = textLength < limit ? textLength : limit;
 		std::memcpy(output, text, count);
 		output[count] = '\0';
 	}
