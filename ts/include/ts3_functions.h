@@ -1,6 +1,8 @@
 #ifndef TS3_FUNCTIONS_H
 #define TS3_FUNCTIONS_H
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

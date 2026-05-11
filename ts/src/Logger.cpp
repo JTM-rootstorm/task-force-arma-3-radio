@@ -4,6 +4,11 @@
 #include <ctime>
 #include <iomanip> // put_time
 #include <utility>
+#include <cstdio>
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 extern struct TS3Functions ts3Functions;
 FileLogger::FileLogger(const std::string& filePath) : file(filePath) {}
@@ -90,6 +95,14 @@ void Logger::_log(LoggerTypes type, const std::string& message, LogLevel _loglev
     //If not found exit silently
 }
 
-void DebugStringLogger::log(const std::string & message) { OutputDebugStringA(message.c_str()); printf("%s", message.c_str()); }
+void DebugStringLogger::log(const std::string & message) {
+#ifdef _WIN32
+    OutputDebugStringA(message.c_str());
+#endif
+    printf("%s", message.c_str());
+}
 
-void DebugStringLogger::log(const std::string & message, LogLevel _loglevel) { OutputDebugStringA(message.c_str()); printf("%s", message.c_str()); }
+void DebugStringLogger::log(const std::string & message, LogLevel _loglevel) {
+    (void)_loglevel;
+    log(message);
+}

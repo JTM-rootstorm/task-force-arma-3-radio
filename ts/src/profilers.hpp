@@ -1,7 +1,9 @@
 #pragma once
 #include <chrono>
 #include "common.hpp"
+#ifdef _WIN32
 #include <Windows.h>
+#endif
 #include <memory>
 #include <utility>
 #include "version.h"
@@ -16,9 +18,11 @@ namespace profiler {
 #ifdef isCI
 #define ENABLE_API_PROFILER 0     // Disabled for release builds
 #define ENABLE_PLUGIN_LOGS 1
-#else
+#elif defined(_WIN32)
 //#define ENABLE_API_PROFILER 1     // Comment this line to disable the profiler
 #define ENABLE_TRACY_PROFILER 1
+#else
+#define ENABLE_API_PROFILER 0
 #endif
 
 #include "ProfilerTracy.hpp"
@@ -150,7 +154,6 @@ public:
 
 
 #endif
-
 
 
 

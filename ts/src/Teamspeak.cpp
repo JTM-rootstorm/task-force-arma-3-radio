@@ -205,6 +205,7 @@ void Teamspeak::setClientMute(TSServerID serverConnectionHandlerID, std::vector<
 }
 
 void Teamspeak::moveToSeriousChannel(TSServerID serverConnectionHandlerID) {
+#ifdef _WIN32
     auto foregroundHWND = GetForegroundWindow();
     if (foregroundHWND && !TFAR::config.get<bool>(Setting::moveWhileTabbedOut)) {
         wchar_t buffer[32];
@@ -217,6 +218,7 @@ void Teamspeak::moveToSeriousChannel(TSServerID serverConnectionHandlerID) {
         std::transform(className.begin(), className.end(), className.begin(), ::tolower);
         if (className.find(L"arma") == std::string::npos) return; //No switch when no Arma
     }
+#endif
     auto seriousChannelName = TFAR::config.get<std::string>(Setting::serious_channelName);
 
     auto seriousChannelID = 
@@ -712,6 +714,10 @@ extern "C" {
 
 int ts3plugin_apiVersion() {
 
+#ifndef _WIN32
+    new_onPluginCommandEvent = 1;
+    return 26;
+#else
     WCHAR fileName[_MAX_PATH];
     auto size = GetModuleFileName(nullptr, fileName, _MAX_PATH);
     fileName[size] = NULL;
@@ -767,6 +773,7 @@ int ts3plugin_apiVersion() {
     }
 
     return retVersion;
+#endif
 }
 
 /* Set TeamSpeak 3 callback functions */
@@ -855,6 +862,10 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
         return 0; /* Plugin handled command */
     }
     if (TFAR::config.get<bool>(Setting::allowDebugging) && std::string(command,4) == "full") {
+#ifndef _WIN32
+        ts3Functions.printMessageToCurrentTab("TFAR: full debug log collection is not implemented on Linux yet.");
+        return 0;
+#else
         std::stringstream date;
         const auto now = std::chrono::system_clock::now();
         const auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -906,6 +917,7 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 
         ts3Functions.printMessageToCurrentTab((std::string("TFAR: logged to ")+ basePath).c_str());
         return 0; /* Plugin handled command */
+#endif
     }
     if (std::string(command) == "rstflt") {
         auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(Teamspeak::getCurrentServerConnection());
@@ -937,7 +949,7 @@ const char* ts3plugin_infoTitle() {
     const size_t maxLen = info.length() + 1;
     const auto result = static_cast<char*>(malloc(maxLen * sizeof(char)));
     memset(result, 0, maxLen);
-    strncpy_s(result, maxLen, info.c_str(), info.length());
+    _strcpy(result, maxLen, info.c_str());
     return result;
 }
 

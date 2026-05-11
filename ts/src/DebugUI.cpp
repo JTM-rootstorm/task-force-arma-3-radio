@@ -1,4 +1,26 @@
 #include "DebugUI.h"
+
+#ifndef _WIN32
+
+class TextRenderer {};
+
+float debugDisplayThing = 0.f;
+float debugDisplayThing2 = 0.f;
+
+DebugUI::DebugUI() : uiThread(nullptr) {}
+
+DebugUI::~DebugUI() {
+    stop();
+}
+
+void DebugUI::run() {}
+
+void DebugUI::stop() {
+    shouldRun = false;
+}
+
+#else
+
 #pragma comment(lib,"opengl32.lib")
 #pragma comment(lib,"freetype.lib")
 
@@ -623,3 +645,5 @@ void DebugUI::stop() {
         delete uiThread;
     }
 }
+
+#endif

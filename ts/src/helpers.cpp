@@ -7,6 +7,13 @@
 #include <algorithm>
 #include "task_force_radio.hpp"
 #include <bitset>
+#include <vector>
+
+#ifdef _WIN32
+#define _SPEAKER_POSITIONS_
+#include <X3daudio.h>
+#pragma comment(lib, "x3daudio.lib")
+#endif
 
 //static_assert(static_cast<AngleRadians>(190.0_deg) > 3.f, "");
 void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadians viewAngle) {
@@ -21,14 +28,11 @@ void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadian
         samples.applyStereoGain(gainFrontLeft, gainFrontRight);
     }
 }
-#define _SPEAKER_POSITIONS_
-#include <X3daudio.h>
-#pragma comment(lib, "x3daudio.lib")
-X3DAUDIO_HANDLE x3d_handle;
-bool x3d_initialized = false;
-
 void helpers::applyILD(SampleBuffer& samples, Position3D myPosition, Direction3D myViewDirection, Position3D emitterPosition, Direction3D emitterViewDirection, bool shouldPlayerHear, int emitterVoiceVolume) {
     ProfileFunction;
+#ifdef _WIN32
+    static X3DAUDIO_HANDLE x3d_handle;
+    static bool x3d_initialized = false;
     if (!x3d_initialized) {
         X3DAudioInitialize(
             SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT,
@@ -164,6 +168,12 @@ drawLine3D [ASLToAGL eyePos player2, ASLToAGL (eyePos player2) vectorAdd (upVec 
 
 
     samples.applyStereoGain(gainFrontLeft, gainFrontRight);
+#else
+    (void)emitterViewDirection;
+    (void)shouldPlayerHear;
+    (void)emitterVoiceVolume;
+    applyILD(samples, myPosition.directionTo(emitterPosition), myViewDirection.toPolarAngle());
+#endif
 }
 
 void helpers::shortFloatMultEx(short * data, size_t elementCount, __m128 multPack) {//#TODO use in gain and ILD for ILD multPack is {left,right,left,right}

@@ -65,5 +65,5 @@ void AntennaManager::removeAntenna(const NetID& antennaID) {
 }
 
 std::vector<std::shared_ptr<Antenna>>::iterator AntennaManager::findAntenna(const NetID& antennaID) {
-    return std::_Find_pr(antennas.begin(), antennas.end(), antennaID, [](const auto& left, const NetID & right) {return *left == right; });
+    return std::find_if(antennas.begin(), antennas.end(), [&antennaID](const auto& left) { return *left == antennaID; });
 }

@@ -7,6 +7,7 @@
 #include <map>
 #include "profilers.hpp"
 #include <array>
+#include <climits>
 #include <functional>
 #include <emmintrin.h>
 #include <iterator>
@@ -25,16 +26,16 @@ static_assert(const_strlen("hello") == 5, "const_strlen no workerino");
 
 //from MSVC std library just in constexpr
 constexpr size_t _Hash_bytes(const char *_First, size_t _Count) noexcept {// FNV-1a hash function for bytes in [_First, _First + _Count)
-#if defined(_WIN64)
+#if defined(_WIN64) || UINTPTR_MAX == UINT64_MAX
     static_assert(sizeof(size_t) == 8, "This code is for 64-bit size_t.");
     const size_t _FNV_offset_basis = 14695981039346656037ULL;
     const size_t _FNV_prime = 1099511628211ULL;
 
-#else /* defined(_WIN64) */
+#else
     static_assert(sizeof(size_t) == 4, "This code is for 32-bit size_t.");
     const size_t _FNV_offset_basis = 2166136261U;
     const size_t _FNV_prime = 16777619U;
-#endif /* defined(_WIN64) */
+#endif
 
     size_t _Val = _FNV_offset_basis;
     for (size_t _Next = 0; _Next < _Count; ++_Next) {// fold in another byte
@@ -57,7 +58,7 @@ constexpr strHashType const_strhash(std::string_view str) {
     return _Hash_bytes(str.data(), str.length());
 }
 
-#ifdef X64BUILD
+#if defined(X64BUILD) || UINTPTR_MAX == UINT64_MAX
 static_assert(const_strhash("SETCFG") == 0x9ca67405fc197a4f, "const_strhash no workerino");
 #else
 static_assert(const_strhash("SETCFG") == 0xb3f7090f, "const_strhash no workerino");

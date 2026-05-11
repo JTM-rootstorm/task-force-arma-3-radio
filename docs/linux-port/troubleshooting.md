@@ -23,14 +23,14 @@ Flatpak TeamSpeak may use a sandboxed path.
 - Confirm `TFAR_BRIDGE_PORT` matches on both sides.
 - Confirm `TFAR_BRIDGE_TOKEN` matches if token enforcement is enabled.
 - Check whether another local process is using the configured port.
-- If the DLL receives `bridge command processor unavailable`, the bridge socket is connected but the Linux plugin artifact is still the skeleton build and cannot process TFAR game commands yet.
+- If the DLL receives `bridge command processor unavailable`, an old skeleton plugin artifact is still installed.
 
 ## TeamSpeak Shows No Game Connection
 
-- The skeleton plugin updates TFAR client metadata only after the Proton bridge socket connects.
+- The Linux plugin updates TFAR client metadata only after the Proton bridge socket connects.
 - Flatpak TeamSpeak 3 should have `shared=network`; without that permission, Proton cannot reach the plugin's loopback listener.
 - If the metadata stays disconnected but Arma is running, confirm the installed `task_force_radio_pipe_x64.dll` contains the socket bridge strings such as `TFAR_BRIDGE_PORT` and `tfar-arma-extension`.
-- If metadata shows connected but Arma still reports TeamSpeak disconnected, the bridge is alive but Phase 4 command parity is still missing.
+- If metadata shows connected but Arma still reports TeamSpeak disconnected, verify `TS_INFO\tPING` reaches the Linux plugin and returns `PONG`.
 
 ## Connection Works But Radio Audio Is Broken
 

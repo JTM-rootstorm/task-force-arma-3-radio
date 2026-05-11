@@ -1,6 +1,11 @@
 #pragma once
 
+#ifdef _WIN32
 #include <Windows.h>
+#else
+#include <mutex>
+#include <shared_mutex>
+#endif
 /*
 could also use std::shared_lock and std::unique_lock from
 #include <shared_mutex>
@@ -44,21 +49,41 @@ public:
 };
 
 class ReadWriteLock_impl {  //Consider SRW locks if you are reading at least 4:1 vs writing
+#ifdef _WIN32
     SRWLOCK m_lock{ SRWLOCK_INIT };
+#else
+    std::shared_mutex m_lock;
+#endif
 public:
     ReadWriteLock_impl() {}
     ReadWriteLock_impl(std::string_view) {}
     void lockExclusive() {
+#ifdef _WIN32
         AcquireSRWLockExclusive(&m_lock);
+#else
+        m_lock.lock();
+#endif
     }
     void lockShared() {
+#ifdef _WIN32
         AcquireSRWLockShared(&m_lock);
+#else
+        m_lock.lock_shared();
+#endif
     }
     void unlockExclusive() {
+#ifdef _WIN32
         ReleaseSRWLockExclusive(&m_lock);
+#else
+        m_lock.unlock();
+#endif
     }
     void unlockShared() {
+#ifdef _WIN32
         ReleaseSRWLockShared(&m_lock);
+#else
+        m_lock.unlock_shared();
+#endif
     }
 
     void lock() {
@@ -76,25 +101,51 @@ public:
 };
 
 class CriticalSectionLock_impl {  //Consider SRW locks if you are reading at least 4:1 vs writing
+#ifdef _WIN32
     CRITICAL_SECTION m_lock;
+#else
+    std::mutex m_lock;
+#endif
 public:
+#ifdef _WIN32
     CriticalSectionLock_impl() { InitializeCriticalSection(&m_lock); }
     CriticalSectionLock_impl(std::string_view) { InitializeCriticalSection(&m_lock); }
 
     ~CriticalSectionLock_impl() {
         DeleteCriticalSection(&m_lock);
     }
+#else
+    CriticalSectionLock_impl() = default;
+    CriticalSectionLock_impl(std::string_view) {}
+    ~CriticalSectionLock_impl() = default;
+#endif
     void lockExclusive() {
+#ifdef _WIN32
         EnterCriticalSection(&m_lock);
+#else
+        m_lock.lock();
+#endif
     }
     void lockShared() {
+#ifdef _WIN32
         EnterCriticalSection(&m_lock);
+#else
+        m_lock.lock();
+#endif
     }
     void unlockExclusive() {
+#ifdef _WIN32
         LeaveCriticalSection(&m_lock);
+#else
+        m_lock.unlock();
+#endif
     }
     void unlockShared() {
+#ifdef _WIN32
         LeaveCriticalSection(&m_lock);
+#else
+        m_lock.unlock();
+#endif
     }
 
 

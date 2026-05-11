@@ -2,6 +2,7 @@
 #include <emmintrin.h>
 #include "helpers.hpp"
 
+template<>
 void SampleBufferT<short>::applyStereoGain(float gainFrontLeft, float gainFrontRight) {
     auto sampleCount = getSampleCount();
     auto channels = getChannels();
@@ -21,6 +22,7 @@ void SampleBufferT<short>::applyStereoGain(float gainFrontLeft, float gainFrontR
     }
 }
 
+template<>
 void SampleBufferT<short>::applyMonoGain(float gain) {
     auto sampleCount = getSampleCount();
     auto channels = getChannels();

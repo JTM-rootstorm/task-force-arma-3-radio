@@ -3,6 +3,7 @@
 #include "public_definitions.h"
 #include <chrono>
 #include "datatypes.hpp"
+#include <limits>
 #include <string_view>
 using namespace dataType;
 using namespace std::literals::string_view_literals;
@@ -46,6 +47,15 @@ using namespace std::literals;
 #define _strcpy(dest, destSize, src) strcpy_s(dest, destSize, src)
 #define snprintf sprintf_s
 #else
+#include <strings.h>
+using DWORD = unsigned int;
+constexpr int MB_OK = 0;
+constexpr int MB_ICONERROR = 0;
+constexpr int MB_ICONHAND = 0;
+constexpr int MB_ICONWARNING = 0;
+inline int MessageBoxA(...) { return 0; }
+inline void __debugbreak() {}
+#define _strnicmp strncasecmp
 #define _strcpy(dest, destSize, src) { strncpy(dest, src, destSize-1); (dest)[destSize-1] = '\0'; }
 #endif
 

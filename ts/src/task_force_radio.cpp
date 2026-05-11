@@ -1,6 +1,8 @@
 #include "task_force_radio.hpp"
+#ifdef _WIN32
 #include <Windows.h>
 #include <WinInet.h>
+#endif
 #include "common.hpp"
 #include <thread>
 #include <locale>
@@ -178,6 +180,9 @@ void TFAR::checkIfSeriousModeEnabled(TSServerID serverID) {
 }
 
 bool TFAR::isUpdateAvailable() {
+#ifndef _WIN32
+    return false;
+#else
     DWORD dwBytes;
     char ch;
     std::string pluginVersion;
@@ -207,9 +212,13 @@ bool TFAR::isUpdateAvailable() {
     } else {
         return false;
     }
+#endif
 }
 #include <sstream>
 void TFAR::trackPiwik(const std::vector<std::string_view>& piwikDataIn) {
+#ifndef _WIN32
+    (void)piwikDataIn;
+#else
 
     /*
     piwikData
@@ -355,14 +364,17 @@ void TFAR::trackPiwik(const std::vector<std::string_view>& piwikDataIn) {
         InternetCloseHandle(Connection);
         InternetCloseHandle(Initialize);
     }).detach();
+#endif
 }
 
 void TFAR::createCheckForUpdateThread() {
+#ifdef _WIN32
     std::thread([]() {
         if (isUpdateAvailable()) {
             MessageBoxA(0, "New version of Task Force Arrowhead Radio is available. Check radio.task-force.ru/en", "Task Force Arrowhead Radio Update", MB_OK);
         }
     }).detach();
+#endif
 }
 
 std::shared_ptr<CommandProcessor>& TFAR::getCommandProcessor() {
@@ -388,4 +400,3 @@ std::shared_ptr<AntennaManager>& TFAR::getAntennaManager() {
         getInstance().m_antennaManger = std::make_shared<AntennaManager>();
     return getInstance().m_antennaManger;
 }
-

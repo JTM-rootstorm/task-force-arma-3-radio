@@ -1,10 +1,15 @@
 #pragma once
 #include <string_view>
 #include <memory>
+#include <cstdint>
 
 
 #include "version.h" //isCI
-#ifdef isCI
+#ifndef _WIN32
+#define ENABLE_API_PROFILER 0
+#define ENABLE_PLUGIN_LOGS 1
+#define ENABLE_TRACY_PROFILER 0
+#elif defined(isCI)
 #define ENABLE_API_PROFILER 0     // Disabled for release builds
 #define ENABLE_PLUGIN_LOGS 1
 #else
@@ -86,13 +91,13 @@ public:
 
 extern ProfilerTracy GProfilerTracy;
 
-#define __CONCAT(x,y) x##y
-#define _CONCAT(x,y) __CONCAT(x,y)
+#define TFAR_CONCAT_IMPL(x,y) x##y
+#define TFAR_CONCAT(x,y) TFAR_CONCAT_IMPL(x,y)
 #if ENABLE_TRACY_PROFILING
 
-#define ProfileFunction static constexpr ProfilerScope _CONCAT(prof_scopeData_, __LINE__) (__FUNCTION__, __LINE__); auto _CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(_CONCAT(prof_scopeData_, __LINE__));
-#define ProfileFunctionN(name) static constexpr ProfilerScope _CONCAT(prof_scopeData_, __LINE__) (name, __FUNCTION__, __LINE__); auto _CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(_CONCAT(prof_scopeData_, __LINE__));
-#define ProfileScopeN(name) static constexpr ProfilerScope _CONCAT(prof_scopeData_, __LINE__) (name, __FUNCTION__, __LINE__); auto _CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(_CONCAT(prof_scopeData_, __LINE__));
+#define ProfileFunction static constexpr ProfilerScope TFAR_CONCAT(prof_scopeData_, __LINE__) (__FUNCTION__, __LINE__); auto TFAR_CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(TFAR_CONCAT(prof_scopeData_, __LINE__));
+#define ProfileFunctionN(name) static constexpr ProfilerScope TFAR_CONCAT(prof_scopeData_, __LINE__) (name, __FUNCTION__, __LINE__); auto TFAR_CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(TFAR_CONCAT(prof_scopeData_, __LINE__));
+#define ProfileScopeN(name) static constexpr ProfilerScope TFAR_CONCAT(prof_scopeData_, __LINE__) (name, __FUNCTION__, __LINE__); auto TFAR_CONCAT(prof_run_, __LINE__) = GProfilerTracy.enterScope(TFAR_CONCAT(prof_scopeData_, __LINE__));
 #define ProfilerLog(msg) GProfilerTracy.addLog(msg)
 
 #else

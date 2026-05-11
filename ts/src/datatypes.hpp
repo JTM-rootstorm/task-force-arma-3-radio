@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <chrono>
+#include <cstring>
 #include <string_view>
 #include <stdexcept>
 

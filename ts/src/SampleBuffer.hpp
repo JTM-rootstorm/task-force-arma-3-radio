@@ -1,10 +1,16 @@
 #pragma once
 #include <algorithm>
+#include <climits>
+#include <cstdint>
 #include <memory>
 #include <variant>
 #include <vector>
 
+#ifdef _WIN32
 #define CAN_USE_SSE_ON(x) (IsProcessorFeaturePresent(PF_XMMI64_INSTRUCTIONS_AVAILABLE) && (reinterpret_cast<uintptr_t>(x) % 16 == 0))
+#else
+#define CAN_USE_SSE_ON(x) ((reinterpret_cast<uintptr_t>(x) % 16 == 0))
+#endif
 
 template<typename Type = short>
 class SampleBufferT {
@@ -54,7 +60,7 @@ class SampleBufferT {
             //    return (*vec)->begin()._Ptr;
             //}
             if (auto vec = std::get_if<std::vector<Type>>(&samples)) {
-                return vec->begin()._Ptr;
+                return vec->data();
             }
             if (auto strct = std::get_if<SampleStruct>(&samples)) {
                 return strct->samples;
@@ -67,7 +73,7 @@ class SampleBufferT {
             //    return (*vec)->end()._Ptr;
             //}
             if (auto vec = std::get_if<std::vector<Type>>(&samples)) {
-                return vec->end()._Ptr;
+                return vec->data() + vec->size();
             }
             if (auto strct = std::get_if<SampleStruct>(&samples)) {
                 return strct->samples + strct->sampleCount * channels;

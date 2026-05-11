@@ -24,8 +24,11 @@
 
 #include "kemar.h"
 
-#if defined _MSC_VER || __APPLE__ || __FreeBSD__
+#if defined _MSC_VER || __APPLE__ || __FreeBSD__ || defined(__linux__)
 #	define pow10f(x) powf(10.0f, (x))
+#endif
+
+#if defined _MSC_VER || __APPLE__ || __FreeBSD__
 #	define log2f(x) (logf(x) / M_LN2)
 #endif
 

@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <cstdint>
 #include "teamlog/logtypes.h"
 class ILogger {
 protected:
@@ -91,4 +92,3 @@ private:
     static Logger& getInstance() { static Logger log; return log; }
     std::map<LoggerTypes, std::vector<std::shared_ptr<ILogger>>> registeredLoggers;
 };
-

@@ -1,6 +1,6 @@
 #pragma once
-#include "DspFilters\Butterworth.h"
-#include "DspFilters\RBJ.h"
+#include "DspFilters/Butterworth.h"
+#include "DspFilters/RBJ.h"
 #include "helpers.hpp"
 #include <simpleSource/SimpleComp.h>
 #include <numeric>
@@ -285,7 +285,9 @@ void processRadioEffect(SampleBuffer& samples, float gain, T* effect, stereoMode
 
 inline void processCompressor(chunkware_simple::SimpleComp* compressor, SampleBuffer& samples) {
     if (samples.getChannels() >= 2) {
-        for (auto& [Sleft,Sright] : samples.iterateStereo()) {
+        for (auto sample : samples.iterateStereo()) {
+            auto& Sleft = sample.first;
+            auto& Sright = sample.second;
             auto Fleft = static_cast<double>(Sleft);
             auto Fright = static_cast<double>(Sright);
             compressor->process(Fleft, Fright);

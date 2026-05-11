@@ -438,6 +438,10 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
 
         }
         case gameCommand::collectDebugInfo: {
+#ifndef _WIN32
+            Teamspeak::printMessageToCurrentTab("TFAR: collectDebugInfo is not implemented on Linux yet.");
+            return;
+#else
             std::stringstream date;
             const auto now = std::chrono::system_clock::now();
             const auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -485,6 +489,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             std::ofstream fsp(basePath + "pos.log");
             fsp << diag.str();
             Teamspeak::printMessageToCurrentTab((std::string("TFAR: logged to ") + basePath).c_str());
+#endif
 
         }
     }

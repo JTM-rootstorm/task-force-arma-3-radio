@@ -28,7 +28,9 @@
 #include "serverData.hpp"
 #include "task_force_radio.hpp"
 #include "common.hpp"
+#ifdef _WIN32
 #include "pipe_handler.hpp"
+#endif
 #include "helpers.hpp"
 #include "PlaybackHandler.hpp"
 #include "Logger.hpp"
@@ -50,7 +52,7 @@
 std::thread threadPipeHandle;
 std::thread threadService;
 
-volatile bool exitThread = FALSE;
+volatile bool exitThread = false;
 volatile bool pipeConnected = false;
 
 void log_string(std::string message, LogLevel level) {
@@ -290,7 +292,7 @@ int ts3plugin_init() {
         ts3Functions.getPluginPath(pluginPath, PATH_BUFSIZE);
     } else {//Compatibility hack for API version > 21
         typedef  void(*getPluginPath_20)(char* path, size_t maxLen, const char* pluginID);
-        static_cast<getPluginPath_20>(static_cast<void*>(ts3Functions.getPluginPath))(pluginPath, PATH_BUFSIZE, TFAR::getInstance().getPluginID().c_str()); //This is ugly but keeps compatibility
+        reinterpret_cast<getPluginPath_20>(ts3Functions.getPluginPath)(pluginPath, PATH_BUFSIZE, TFAR::getInstance().getPluginID().c_str()); //This is ugly but keeps compatibility
     }
 
 

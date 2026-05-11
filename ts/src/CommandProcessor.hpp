@@ -2,6 +2,7 @@
 #include <thread>
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 #include "common.hpp"
 #include <atomic>
 
@@ -63,4 +64,3 @@ private:
     bool shouldRun = true;//don't need atomic here. believe me.
     bool threadRunning = false;
 };
-

@@ -307,9 +307,8 @@ void playbackWavStereo::construct(std::string wavFilePath, stereoMode stereo, fl
         auto wav = new clunk::WavFile(f);
         wav->read();
         if (!wav->ok() || wav->_spec.channels != 2 || wav->_spec.sample_rate != 48000 || wav->_spec.format != clunk::AudioSpec::S16) {
-            char buffer[MAX_PATH + const_strlen("File %s has invalid format.")];
-            _snprintf_s(buffer, MAX_PATH + const_strlen("File %s has invalid format."), _TRUNCATE, "File %s has invalid format.", wavFilePath.c_str());
-            MessageBoxA(0, buffer, "Task Force Arrowhead Radio", MB_OK);
+            const auto message = "File " + wavFilePath + " has invalid format.";
+            MessageBoxA(0, message.c_str(), "Task Force Arrowhead Radio", MB_OK);
         } else {
             construct(wav, stereo, gain);
         }
@@ -376,8 +375,9 @@ playbackWavStereo::~playbackWavStereo() {
 }
 
 size_t playbackWavStereo::getSamples(const short* &data) {
-    data = std::min(sampleStore.data() + currentPosition, sampleStore.end()._Ptr);
-    return sampleStore.end()._Ptr - (sampleStore.data() + currentPosition);
+    const auto end = sampleStore.data() + sampleStore.size();
+    data = std::min(sampleStore.data() + currentPosition, end);
+    return end - (sampleStore.data() + currentPosition);
 }
 
 size_t playbackWavStereo::cleanSamples(size_t sampleCount) {
@@ -406,16 +406,18 @@ size_t playbackWavRaw::getSamples(const short*& data) {
     });
 #endif
 #ifndef isCI 
-    if (sampleStore.data() + currentPosition >= sampleStore.end()._Ptr) {
+    const auto debugEnd = sampleStore.data() + sampleStore.size();
+    if (sampleStore.data() + currentPosition >= debugEnd) {
         std::stringstream str;
         str << "playbackWavRaw::getSamples tried read beyond end!! " << sampleStore.size() << currentPosition;
-        str << "offs " << sampleStore.data() + currentPosition << sampleStore.end()._Ptr;
+        str << "offs " << sampleStore.data() + currentPosition << debugEnd;
         Logger::log(LoggerTypes::teamspeakClientlog, str.str(), LogLevel_WARNING);
     }
 #endif
 
-    data = std::min(sampleStore.data() + currentPosition, sampleStore.end()._Ptr);
-    return sampleStore.end()._Ptr - (sampleStore.data() + currentPosition);
+    const auto end = sampleStore.data() + sampleStore.size();
+    data = std::min(sampleStore.data() + currentPosition, end);
+    return end - (sampleStore.data() + currentPosition);
 }
 
 size_t playbackWavRaw::cleanSamples(size_t sampleCount) {
@@ -499,8 +501,9 @@ size_t playbackWavProcessing::getSamples(const short*& data) {
         log_string("processing use " + std::to_string(duration), LogLevel_WARNING);
     });
 #endif
-    data = std::min(sampleStore.data() + currentPosition, sampleStore.end()._Ptr);
-    return sampleStore.end()._Ptr - (sampleStore.data() + currentPosition);
+    const auto end = sampleStore.data() + sampleStore.size();
+    data = std::min(sampleStore.data() + currentPosition, end);
+    return end - (sampleStore.data() + currentPosition);
 }
 
 size_t playbackWavProcessing::cleanSamples(size_t sampleCount) {
