@@ -46,18 +46,28 @@ jobs:
             throw "dumpbin.exe not found"
           }
 
-          $pipeExports = (& $dumpbin.FullName /exports extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll) -join "`n"
-          if ($pipeExports -notmatch "(?m)^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+RVExtension\s*$") {
+          function Get-ExportNames($path) {
+            (& $dumpbin.FullName /exports $path) | ForEach-Object {
+              if ($_ -match '^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)\s*$') {
+                $Matches[1]
+              }
+            }
+          }
+
+          $pipeNames = @(Get-ExportNames "extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll")
+          Write-Host "Pipe exports: $($pipeNames -join ', ')"
+          if ($pipeNames -notcontains "RVExtension") {
             throw "task_force_radio_pipe_x64.dll does not export RVExtension"
           }
 
-          $bridgeExports = (& $dumpbin.FullName /exports extensions/tfar_proton_bridge/x64/Release/tfar_proton_bridge_x64.dll) -join "`n"
+          $bridgeNames = @(Get-ExportNames "extensions/tfar_proton_bridge/x64/Release/tfar_proton_bridge_x64.dll")
+          Write-Host "Bridge exports: $($bridgeNames -join ', ')"
           foreach ($name in @("TFARBridge_GetApiVersion", "TFARBridge_RVExtension", "TFARBridge_Shutdown")) {
-            if ($bridgeExports -notmatch $name) {
+            if ($bridgeNames -notcontains $name) {
               throw "tfar_proton_bridge_x64.dll does not export $name"
             }
           }
-          if ($bridgeExports -match "(?m)^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+RVExtension\s*$") {
+          if ($bridgeNames -contains "RVExtension") {
             throw "tfar_proton_bridge_x64.dll must not export plain RVExtension"
           }
       - name: Upload Arma loader DLL
