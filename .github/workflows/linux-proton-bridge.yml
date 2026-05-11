@@ -47,7 +47,7 @@ jobs:
           }
 
           $pipeExports = (& $dumpbin.FullName /exports extensions/task_force_radio_pipe/x64/Release/task_force_radio_pipe_x64.dll) -join "`n"
-          if ($pipeExports -notmatch "\sRVExtension\s*$") {
+          if ($pipeExports -notmatch "(?m)^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+RVExtension\s*$") {
             throw "task_force_radio_pipe_x64.dll does not export RVExtension"
           }
 
@@ -57,7 +57,7 @@ jobs:
               throw "tfar_proton_bridge_x64.dll does not export $name"
             }
           }
-          if ($bridgeExports -match "\sRVExtension\s*$") {
+          if ($bridgeExports -match "(?m)^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+RVExtension\s*$") {
             throw "tfar_proton_bridge_x64.dll must not export plain RVExtension"
           }
       - name: Upload Arma loader DLL
