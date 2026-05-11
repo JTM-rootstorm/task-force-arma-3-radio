@@ -11,6 +11,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <None Include="tfar_proton_bridge.def" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="SocketTransfer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

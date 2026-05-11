@@ -1,0 +1,5 @@
+LIBRARY "tfar_proton_bridge_x64"
+EXPORTS
+    TFARBridge_GetApiVersion
+    TFARBridge_RVExtension
+    TFARBridge_Shutdown

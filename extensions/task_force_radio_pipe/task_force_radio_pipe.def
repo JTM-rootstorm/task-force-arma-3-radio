@@ -1,0 +1,3 @@
+LIBRARY "task_force_radio_pipe_x64"
+EXPORTS
+    RVExtension
