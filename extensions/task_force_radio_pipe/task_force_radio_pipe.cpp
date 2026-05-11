@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "RuntimeTransportSelector.h"
 
+extern "C" __declspec(dllexport)
 void __stdcall RVExtension(char *output, int outputSize, const char *input) {
 	tfar_pipe::transactRuntime(output, outputSize, input);
 }
