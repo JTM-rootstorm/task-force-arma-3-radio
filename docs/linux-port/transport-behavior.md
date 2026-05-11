@@ -13,3 +13,5 @@ The existing Windows transport behavior to preserve:
 The bridge keeps those semantics by translating the legacy suffix into `SyncCommand` or `AsyncCommand` frame types. Command payloads are otherwise unchanged.
 
 Windows native remains the reference behavior until direct speech and radio gameplay are validated under Proton with native Linux TeamSpeak.
+
+The current Linux bridge skeleton intentionally rejects sync commands with `bridge command processor unavailable` because it does not yet link the full TFAR `CommandProcessor` runtime. Without that fail-fast behavior, the Proton DLL connects successfully but blocks until `PIPE_TIMEOUT` for every sync command.

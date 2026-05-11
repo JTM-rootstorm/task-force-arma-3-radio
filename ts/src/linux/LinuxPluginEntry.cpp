@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 namespace {
 
@@ -51,7 +52,9 @@ __attribute__((visibility("default"))) const char* ts3plugin_description() {
 __attribute__((visibility("default"))) void ts3plugin_setFunctionPointers(const struct TS3Functions) {}
 
 __attribute__((visibility("default"))) int ts3plugin_init() {
-    bridgeServer = std::make_unique<tfar::LinuxBridgeServer>();
+    auto config = tfar::loadLinuxBridgeConfigFromEnvironment();
+    config.rejectCommandsWithoutConsumer = true;
+    bridgeServer = std::make_unique<tfar::LinuxBridgeServer>(std::move(config));
     return bridgeServer->initialize() ? 0 : 1;
 }
 
@@ -83,7 +86,10 @@ __attribute__((visibility("default"))) const char* ts3plugin_infoTitle() {
 }
 
 __attribute__((visibility("default"))) void ts3plugin_infoData(unsigned long long, unsigned long long, enum PluginItemType, char** data) {
-    *data = copyPluginString("[B]TFAR Linux Bridge[/B]\nConnected to Game: [B]No[/B]");
+    const bool connected = bridgeServer && bridgeServer->isConnected();
+    *data = copyPluginString(connected
+        ? "[B]TFAR Linux Bridge[/B]\nConnected to Game: [B]Yes[/B]\nCommand processor: [B]Unavailable[/B]"
+        : "[B]TFAR Linux Bridge[/B]\nConnected to Game: [B]No[/B]");
 }
 
 __attribute__((visibility("default"))) void ts3plugin_freeMemory(void* data) {

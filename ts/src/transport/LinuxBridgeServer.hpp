@@ -19,6 +19,7 @@ struct LinuxBridgeConfig {
     std::uint16_t port = 47333;
     std::string token;
     bool requireToken = false;
+    bool rejectCommandsWithoutConsumer = false;
 };
 
 class LinuxBridgeServer final : public IGameTransport {

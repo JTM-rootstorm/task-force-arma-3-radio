@@ -23,6 +23,7 @@ Flatpak TeamSpeak may use a sandboxed path.
 - Confirm `TFAR_BRIDGE_PORT` matches on both sides.
 - Confirm `TFAR_BRIDGE_TOKEN` matches if token enforcement is enabled.
 - Check whether another local process is using the configured port.
+- If the DLL receives `bridge command processor unavailable`, the bridge socket is connected but the Linux plugin artifact is still the skeleton build and cannot process TFAR game commands yet.
 
 ## Connection Works But Radio Audio Is Broken
 

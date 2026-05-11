@@ -226,7 +226,16 @@ void LinuxBridgeServer::run() {
                     sendFrame(accepted, bridge::Type::Pong, header.sequence, payload);
                     break;
                 case bridge::Type::SyncCommand:
+                    if (config_.rejectCommandsWithoutConsumer) {
+                        sendFrame(accepted, bridge::Type::Error, header.sequence, "bridge command processor unavailable");
+                        break;
+                    }
+                    enqueue(GameCommand{ std::move(payload), false, header.sequence });
+                    break;
                 case bridge::Type::AsyncCommand:
+                    if (config_.rejectCommandsWithoutConsumer) {
+                        break;
+                    }
                     enqueue(GameCommand{ std::move(payload), type == bridge::Type::AsyncCommand, header.sequence });
                     break;
                 case bridge::Type::Disconnect:
