@@ -235,6 +235,13 @@ void PlaybackHandler::playWavFile(TSServerID serverConnectionHandlerID, SoundFil
     _mm_setcsr((_mm_getcsr() & ~0x0040) | (0x0040));//_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     if (!Teamspeak::isConnected(serverConnectionHandlerID)) return;
 
+#ifndef _WIN32
+    if (file.type == SoundFile::SoundFileType::PluginFolderFile && std::getenv("TFAR_LINUX_CUSTOM_WAV_MIXER") == nullptr) {
+        Teamspeak::playWavFile(file.getFullPath());
+        return;
+    }
+#endif
+
     appendPlayback(file.fileName + std::to_string(rand()), file, stereo, gain);
 }
 

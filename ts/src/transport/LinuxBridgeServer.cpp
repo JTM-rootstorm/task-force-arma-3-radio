@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
+#include <string_view>
 #include <vector>
 
 #include <arpa/inet.h>
@@ -71,6 +72,11 @@ std::uint16_t readPortEnv(const char* value, std::uint16_t fallback) {
 } // namespace
 
 namespace tfar {
+using namespace std::literals::string_view_literals;
+
+namespace {
+constexpr std::size_t kMaxLowPriorityCommandBacklog = 300;
+}
 
 LinuxBridgeConfig loadLinuxBridgeConfigFromEnvironment() {
     LinuxBridgeConfig config;
@@ -118,8 +124,18 @@ bool LinuxBridgeServer::isConnected() const {
 
 std::optional<GameCommand> LinuxBridgeServer::receiveCommand(std::chrono::milliseconds timeout) {
     std::unique_lock<std::mutex> lock(queueMutex_);
-    if (!queueCv_.wait_for(lock, timeout, [this]() { return !queue_.empty() || !running_.load(); })) {
+    if (!queueCv_.wait_for(lock, timeout, [this]() { return !syncQueue_.empty() || !highPriorityAsyncQueue_.empty() || !queue_.empty() || !running_.load(); })) {
         return std::nullopt;
+    }
+    if (!syncQueue_.empty()) {
+        auto command = std::move(syncQueue_.front());
+        syncQueue_.pop_front();
+        return command;
+    }
+    if (!highPriorityAsyncQueue_.empty()) {
+        auto command = std::move(highPriorityAsyncQueue_.front());
+        highPriorityAsyncQueue_.pop_front();
+        return command;
     }
     if (queue_.empty()) {
         return std::nullopt;
@@ -277,9 +293,24 @@ bool LinuxBridgeServer::sendFrame(int socket, bridge::Type type, std::uint32_t s
 void LinuxBridgeServer::enqueue(GameCommand command) {
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
-        queue_.push_back(std::move(command));
+        if (!command.async) {
+            syncQueue_.push_back(std::move(command));
+        } else if (isHighPriorityAsyncCommand(command.payload)) {
+            highPriorityAsyncQueue_.push_back(std::move(command));
+        } else {
+            if (queue_.size() >= kMaxLowPriorityCommandBacklog) {
+                queue_.pop_front();
+            }
+            queue_.push_back(std::move(command));
+        }
     }
     queueCv_.notify_one();
+}
+
+bool LinuxBridgeServer::isHighPriorityAsyncCommand(std::string_view command) {
+    const auto commandEnd = command.find('\t');
+    const auto commandName = command.substr(0, commandEnd);
+    return commandName != "POS"sv && commandName != "TRACK"sv && commandName != "collectDebugInfo"sv;
 }
 
 bool LinuxBridgeServer::authorizeHello(const std::string& payload) const {

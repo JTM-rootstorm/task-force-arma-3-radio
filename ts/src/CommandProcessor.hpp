@@ -41,6 +41,8 @@ public:
 
     static inline std::atomic_bool vadEnabled = false;
 private:
+    static bool isHighPriorityAsyncCommand(std::string_view command);
+
     void threadRun();
     void processAsynchronousCommand(const std::string& command) const;//Called inside thread
 
@@ -57,6 +59,7 @@ private:
     static std::string convertNickname(std::string_view nickname);
 
 
+    std::queue<std::string> highPriorityCommandQueue;
     std::queue<std::string> commandQueue;
     std::unique_ptr<std::thread> myThread;
     std::condition_variable threadWorkCondition;

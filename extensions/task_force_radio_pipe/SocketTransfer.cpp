@@ -76,10 +76,12 @@ void SocketTransfer::transactMessage(char* output, int outputSize, const char* i
     }
 
     std::string command(input);
-    const bool async = !command.empty() && command.back() == '~';
-    if (async) {
+    const bool asyncMarker = !command.empty() && command.back() == '~';
+    if (asyncMarker) {
         command.pop_back();
     }
+    const bool needsSynchronousAnswer = command == "DFRAME";
+    const bool async = asyncMarker && !needsSynchronousAnswer;
 
     if (!ensureConnected()) {
         writeOutput(output, outputSize, "Not connected to TeamSpeak");

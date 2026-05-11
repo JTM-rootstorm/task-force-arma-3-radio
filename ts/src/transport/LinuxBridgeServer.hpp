@@ -41,6 +41,7 @@ private:
     void closeListenSocket();
     bool sendFrame(int socket, bridge::Type type, std::uint32_t sequence, const std::string& payload);
     void enqueue(GameCommand command);
+    static bool isHighPriorityAsyncCommand(std::string_view command);
     bool authorizeHello(const std::string& payload) const;
 
     LinuxBridgeConfig config_;
@@ -54,6 +55,8 @@ private:
 
     std::mutex queueMutex_;
     std::condition_variable queueCv_;
+    std::deque<GameCommand> syncQueue_;
+    std::deque<GameCommand> highPriorityAsyncQueue_;
     std::deque<GameCommand> queue_;
 };
 

@@ -15,6 +15,10 @@
 
 using namespace std::literals::string_view_literals;
 
+namespace {
+constexpr size_t kMaxLowPriorityCommandBacklog = 300;
+}
+
 volatile bool skipTangentOff = false;
 volatile bool waitingForTangentOff = false;
 CriticalSectionLock tangentCriticalSection{ "tangentCriticalSection" };
@@ -28,6 +32,7 @@ CommandProcessor::CommandProcessor() {
         diag << "CP:\n";
         diag << TS_INDENT << "shouldRun: " << shouldRun << "\n";
         diag << TS_INDENT << "cmdQueueBacklog: " << commandQueue.size() << "\n";
+        diag << TS_INDENT << "cmdQueueHighPriorityBacklog: " << highPriorityCommandQueue.size() << "\n";
         diag << TS_INDENT << "thread: " << myThread->get_id() << "\n";
     });
 
@@ -61,9 +66,22 @@ void CommandProcessor::queueCommand(const std::string& command) {
     }
     {
         std::lock_guard<std::mutex> lock(theadMutex);
-        commandQueue.emplace(command);
+        if (isHighPriorityAsyncCommand(command)) {
+            highPriorityCommandQueue.emplace(command);
+        } else {
+            if (commandQueue.size() >= kMaxLowPriorityCommandBacklog) {
+                commandQueue.pop();
+            }
+            commandQueue.emplace(command);
+        }
     }
     threadWorkCondition.notify_one();
+}
+
+bool CommandProcessor::isHighPriorityAsyncCommand(std::string_view command) {
+    const auto commandEnd = command.find('\t');
+    const auto commandName = command.substr(0, commandEnd);
+    return commandName != "POS"sv && commandName != "TRACK"sv && commandName != "collectDebugInfo"sv;
 }
 
 
@@ -142,6 +160,9 @@ std::string CommandProcessor::processCommand(const std::string& command) {
 
             return result;
         }
+        case gameCommand::DFRAME:
+            queueCommand(command);
+            return TFAR::config.needsRefresh() ? "NEEDCFG" : "OK";
         case gameCommand::RECV_FREQS: {
             const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(Teamspeak::getCurrentServerConnection());
             if (!clientDataDir) return "[]";
@@ -208,11 +229,17 @@ void CommandProcessor::threadRun() {
     threadRunning = true;
     while (shouldRun) {
         std::unique_lock<std::mutex> lock(theadMutex);
-        threadWorkCondition.wait(lock, [this] {return !commandQueue.empty() || !shouldRun; });
+        threadWorkCondition.wait(lock, [this] {return !highPriorityCommandQueue.empty() || !commandQueue.empty() || !shouldRun; });
         if (!shouldRun) return;
         ProfileFunction;
-        const auto command(std::move(commandQueue.front()));
-        commandQueue.pop();
+        std::string command;
+        if (!highPriorityCommandQueue.empty()) {
+            command = std::move(highPriorityCommandQueue.front());
+            highPriorityCommandQueue.pop();
+        } else {
+            command = std::move(commandQueue.front());
+            commandQueue.pop();
+        }
         lock.unlock();
         processAsynchronousCommand(command);
     }
