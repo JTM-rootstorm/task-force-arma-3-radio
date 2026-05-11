@@ -9,6 +9,8 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 class SocketTransfer {
 public:
@@ -28,10 +30,15 @@ private:
     bool sendFrame(tfar::bridge::Type type, std::uint32_t sequence, const std::string& payload);
     bool receiveFrame(tfar::bridge::Type& type, std::uint32_t& sequence, std::string& payload, int timeoutMs);
     void queueAsyncCommand(std::string command);
+    void queueCachedSyncRefresh(std::string command);
     void ensureAsyncWorker();
     void stopAsyncWorker();
     void asyncWorkerLoop();
+    bool sendSyncCommandLocked(const std::string& command, std::string& response);
     static bool isHighPriorityAsyncCommand(const std::string& command);
+    static bool isCachedSpeakingCommand(const std::string& command);
+    static std::string defaultSpeakingResponse(const std::string& command);
+    std::string cachedSpeakingResponse(const std::string& command);
     void writeOutput(char* output, int outputSize, const std::string& text) const;
     std::string bridgeHost() const;
     std::uint16_t bridgePort() const;
@@ -44,9 +51,14 @@ private:
 
     std::mutex asyncMutex_;
     std::condition_variable asyncCv_;
+    std::deque<std::string> cachedSyncQueue_;
+    std::unordered_set<std::string> queuedCachedSyncCommands_;
     std::deque<std::string> highPriorityAsyncQueue_;
     std::deque<std::string> asyncQueue_;
     std::thread asyncThread_;
     bool asyncWorkerStarted_ = false;
     bool stopAsyncWorker_ = false;
+
+    std::mutex cachedSyncMutex_;
+    std::unordered_map<std::string, std::string> cachedSyncResponses_;
 };
