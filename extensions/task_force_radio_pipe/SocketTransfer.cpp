@@ -5,11 +5,14 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
 #include <vector>
 
 #pragma comment(lib, "Ws2_32.lib")
 
 namespace {
+constexpr std::size_t kMaxHighPriorityAsyncBacklog = 300;
+constexpr std::size_t kMaxLowPriorityAsyncBacklog = 60;
 
 std::string getenvString(const char* name) {
     const char* value = std::getenv(name);
@@ -64,6 +67,7 @@ SocketTransfer::SocketTransfer() {
 }
 
 SocketTransfer::~SocketTransfer() {
+    stopAsyncWorker();
     disconnect();
     if (winsockStarted_) {
         WSACleanup();
@@ -83,23 +87,17 @@ void SocketTransfer::transactMessage(char* output, int outputSize, const char* i
     const bool needsSynchronousAnswer = command == "DFRAME";
     const bool async = asyncMarker && !needsSynchronousAnswer;
 
-    if (!ensureConnected()) {
-        writeOutput(output, outputSize, "Not connected to TeamSpeak");
-        return;
-    }
-
-    const std::uint32_t sequence = async ? 0 : nextSequence_++;
-    if (!sendFrame(async ? tfar::bridge::Type::AsyncCommand : tfar::bridge::Type::SyncCommand, sequence, command)) {
-        disconnect();
-        writeOutput(output, outputSize, "Not connected to TeamSpeak");
-        return;
-    }
-
     if (async) {
-        if (!command.empty() && command.front() == 'D') {
+        const bool isDataFrameCommand = !command.empty() && command.front() == 'D';
+        const bool isMissionEndCommand = !command.empty() && command.front() == 'M';
+        if (!ensureConnected()) {
+            writeOutput(output, outputSize, "Not connected to TeamSpeak");
+            return;
+        }
+        queueAsyncCommand(std::move(command));
+        if (isDataFrameCommand) {
             writeOutput(output, outputSize, "OK");
-        } else if (!command.empty() && command.front() == 'M') {
-            disconnect();
+        } else if (isMissionEndCommand) {
             writeOutput(output, outputSize, "OK");
         } else {
             writeOutput(output, outputSize, "OK");
@@ -110,25 +108,44 @@ void SocketTransfer::transactMessage(char* output, int outputSize, const char* i
     tfar::bridge::Type type{};
     std::uint32_t responseSequence = 0;
     std::string payload;
-    if (!receiveFrame(type, responseSequence, payload, PIPE_TIMEOUT) ||
-        responseSequence != sequence ||
-        (type != tfar::bridge::Type::Response && type != tfar::bridge::Type::Error)) {
+    {
+        std::lock_guard<std::mutex> socketLock(socketMutex_);
+        if (!ensureConnectedLocked()) {
+            writeOutput(output, outputSize, "Not connected to TeamSpeak");
+            return;
+        }
+
+        const std::uint32_t sequence = nextSequence_++;
+        if (!sendFrame(tfar::bridge::Type::SyncCommand, sequence, command) ||
+            !receiveFrame(type, responseSequence, payload, PIPE_TIMEOUT) ||
+            responseSequence != sequence ||
+            (type != tfar::bridge::Type::Response && type != tfar::bridge::Type::Error)) {
+            disconnectLocked();
+            writeOutput(output, outputSize, "Not connected to TeamSpeak");
+            return;
+        }
+    }
+
+    if (command == "MISSIONEND") {
         disconnect();
-        writeOutput(output, outputSize, "Not connected to TeamSpeak");
-        return;
     }
 
     writeOutput(output, outputSize, payload);
 }
 
 bool SocketTransfer::ensureConnected() {
+    std::lock_guard<std::mutex> socketLock(socketMutex_);
+    return ensureConnectedLocked();
+}
+
+bool SocketTransfer::ensureConnectedLocked() {
     if (socket_ != INVALID_SOCKET) {
         return true;
     }
-    return connectSocket();
+    return connectSocketLocked();
 }
 
-bool SocketTransfer::connectSocket() {
+bool SocketTransfer::connectSocketLocked() {
     if (!winsockStarted_) {
         return false;
     }
@@ -175,10 +192,102 @@ bool SocketTransfer::connectSocket() {
 }
 
 void SocketTransfer::disconnect() {
+    std::lock_guard<std::mutex> socketLock(socketMutex_);
+    disconnectLocked();
+}
+
+void SocketTransfer::disconnectLocked() {
     if (socket_ != INVALID_SOCKET) {
         closesocket(socket_);
         socket_ = INVALID_SOCKET;
     }
+}
+
+void SocketTransfer::queueAsyncCommand(std::string command) {
+    ensureAsyncWorker();
+    {
+        std::lock_guard<std::mutex> lock(asyncMutex_);
+        auto& queue = isHighPriorityAsyncCommand(command) ? highPriorityAsyncQueue_ : asyncQueue_;
+        const auto maxBacklog = isHighPriorityAsyncCommand(command) ? kMaxHighPriorityAsyncBacklog : kMaxLowPriorityAsyncBacklog;
+        if (queue.size() >= maxBacklog) {
+            queue.pop_front();
+        }
+        queue.emplace_back(std::move(command));
+    }
+    asyncCv_.notify_one();
+}
+
+void SocketTransfer::ensureAsyncWorker() {
+    std::lock_guard<std::mutex> lock(asyncMutex_);
+    if (asyncWorkerStarted_) {
+        return;
+    }
+    stopAsyncWorker_ = false;
+    asyncThread_ = std::thread(&SocketTransfer::asyncWorkerLoop, this);
+    asyncWorkerStarted_ = true;
+}
+
+void SocketTransfer::stopAsyncWorker() {
+    {
+        std::lock_guard<std::mutex> lock(asyncMutex_);
+        if (!asyncWorkerStarted_) {
+            return;
+        }
+        stopAsyncWorker_ = true;
+    }
+    asyncCv_.notify_one();
+    if (asyncThread_.joinable()) {
+        asyncThread_.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(asyncMutex_);
+        asyncWorkerStarted_ = false;
+        highPriorityAsyncQueue_.clear();
+        asyncQueue_.clear();
+    }
+}
+
+void SocketTransfer::asyncWorkerLoop() {
+    while (true) {
+        std::string command;
+        {
+            std::unique_lock<std::mutex> lock(asyncMutex_);
+            asyncCv_.wait(lock, [this]() {
+                return stopAsyncWorker_ || !highPriorityAsyncQueue_.empty() || !asyncQueue_.empty();
+            });
+            if (stopAsyncWorker_) {
+                return;
+            }
+            if (!highPriorityAsyncQueue_.empty()) {
+                command = std::move(highPriorityAsyncQueue_.front());
+                highPriorityAsyncQueue_.pop_front();
+            } else {
+                command = std::move(asyncQueue_.front());
+                asyncQueue_.pop_front();
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> socketLock(socketMutex_);
+            if (!ensureConnectedLocked() ||
+                !sendFrame(tfar::bridge::Type::AsyncCommand, 0, command)) {
+                disconnectLocked();
+            }
+        }
+
+        if (!command.empty() && command.front() == 'M') {
+            disconnect();
+        }
+        if (!isHighPriorityAsyncCommand(command)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+}
+
+bool SocketTransfer::isHighPriorityAsyncCommand(const std::string& command) {
+    const auto commandEnd = command.find('\t');
+    const auto commandName = command.substr(0, commandEnd);
+    return commandName != "POS" && commandName != "TRACK" && commandName != "collectDebugInfo";
 }
 
 bool SocketTransfer::sendFrame(tfar::bridge::Type type, std::uint32_t sequence, const std::string& payload) {
