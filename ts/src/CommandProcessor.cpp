@@ -629,7 +629,7 @@ std::string CommandProcessor::ts_info(std::string_view command) {
     if (command == "PING")
         return "PONG";
     if (command == "VERSION")
-        return PLUGIN_VERSION;
+        return PLUGIN_VERSION_DISPLAY;
     return "FAIL";
 }
 

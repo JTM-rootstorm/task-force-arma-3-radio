@@ -7,7 +7,7 @@
 #include "version.h" //isCI
 #ifndef _WIN32
 #define ENABLE_API_PROFILER 0
-#define ENABLE_PLUGIN_LOGS 1
+#define ENABLE_PLUGIN_LOGS 0
 #define ENABLE_TRACY_PROFILER 0
 #elif defined(isCI)
 #define ENABLE_API_PROFILER 0     // Disabled for release builds

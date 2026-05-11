@@ -1,4 +1,11 @@
 #include "PlaybackHandler.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
 #include <vector>
 
 #include "helpers.hpp"
@@ -9,6 +16,93 @@
 #include "Teamspeak.hpp"
 #include "Logger.hpp"
 #include <filesystem>
+
+namespace {
+
+#ifdef _WIN32
+constexpr std::uint32_t kTeamSpeakMixerSampleRate = 48000;
+#else
+constexpr std::uint32_t kTeamSpeakMixerSampleRate = 44100;
+#endif
+
+std::uint32_t getTeamSpeakMixerSampleRate() {
+#ifdef _WIN32
+    return kTeamSpeakMixerSampleRate;
+#else
+    if (const auto* env = std::getenv("TFAR_TS_MIXER_RATE")) {
+        char* end = nullptr;
+        const auto value = std::strtoul(env, &end, 10);
+        if (end != env && *end == '\0' && value >= 8000 && value <= 192000) {
+            return static_cast<std::uint32_t>(value);
+        }
+    }
+    return kTeamSpeakMixerSampleRate;
+#endif
+}
+
+bool isSupportedWavFormat(const clunk::WavFile& wav) {
+    return wav.ok() &&
+           wav._spec.channels >= 1 &&
+           wav._spec.format == clunk::AudioSpec::S16 &&
+           wav._spec.sample_rate > 0;
+}
+
+std::uint32_t normalizeSourceSampleRate(std::uint32_t sourceSampleRate) {
+    return sourceSampleRate == 0 ? getTeamSpeakMixerSampleRate() : sourceSampleRate;
+}
+
+short readStereoSourceSample(const short* samples, size_t frame, uint8_t channels, uint8_t channel) {
+    const auto sourceChannel = channels == 1 ? 0 : std::min<std::uint8_t>(channel, channels - 1);
+    return samples[(frame * channels) + sourceChannel];
+}
+
+short interpolateSample(const short* samples, size_t sourceFrames, uint8_t channels, double sourceFrame, uint8_t channel) {
+    const auto baseFrame = std::min(static_cast<size_t>(sourceFrame), sourceFrames - 1);
+    const auto nextFrame = std::min(baseFrame + 1, sourceFrames - 1);
+    const auto fraction = sourceFrame - static_cast<double>(baseFrame);
+    const auto first = static_cast<double>(readStereoSourceSample(samples, baseFrame, channels, channel));
+    const auto second = static_cast<double>(readStereoSourceSample(samples, nextFrame, channels, channel));
+    const auto mixed = first + ((second - first) * fraction);
+    return static_cast<short>(std::clamp(mixed,
+                                         static_cast<double>(std::numeric_limits<short>::min()),
+                                         static_cast<double>(std::numeric_limits<short>::max())));
+}
+
+void appendStereoFrames(std::vector<short>& target, const short* samples, size_t sampleCount, uint8_t channels) {
+    if (samples == nullptr || sampleCount == 0 || channels == 0) return;
+
+    const auto oldSize = target.size();
+    target.resize(oldSize + (sampleCount * 2));
+    auto* output = target.data() + oldSize;
+    for (size_t frame = 0; frame < sampleCount; ++frame) {
+        output[(frame * 2)] = readStereoSourceSample(samples, frame, channels, 0);
+        output[(frame * 2) + 1] = readStereoSourceSample(samples, frame, channels, 1);
+    }
+}
+
+void appendStereoFramesAtRate(std::vector<short>& target, const short* samples, size_t sampleCount, uint8_t channels, std::uint32_t sourceSampleRate) {
+    if (samples == nullptr || sampleCount == 0 || channels == 0) return;
+
+    sourceSampleRate = normalizeSourceSampleRate(sourceSampleRate);
+    const auto outputSampleRate = getTeamSpeakMixerSampleRate();
+    if (sourceSampleRate == outputSampleRate) {
+        appendStereoFrames(target, samples, sampleCount, channels);
+        return;
+    }
+
+    const auto outputFrames = std::max<size_t>(1, ((sampleCount * outputSampleRate) + (sourceSampleRate / 2)) / sourceSampleRate);
+    const auto oldSize = target.size();
+    target.resize(oldSize + (outputFrames * 2));
+    auto* output = target.data() + oldSize;
+    const auto sourceStep = static_cast<double>(sourceSampleRate) / static_cast<double>(outputSampleRate);
+    for (size_t outputFrame = 0; outputFrame < outputFrames; ++outputFrame) {
+        const auto sourceFrame = std::min(static_cast<double>(sampleCount - 1), static_cast<double>(outputFrame) * sourceStep);
+        output[(outputFrame * 2)] = interpolateSample(samples, sampleCount, channels, sourceFrame, 0);
+        output[(outputFrame * 2) + 1] = interpolateSample(samples, sampleCount, channels, sourceFrame, 1);
+    }
+}
+
+} // namespace
 
 std::string SoundFile::getFullPath() const {
     return TFAR::getInstance().getPluginPath() + fileName + ".wav";
@@ -120,7 +214,7 @@ void PlaybackHandler::appendPlayback(std::string name, SoundFile file, std::vect
     if (playbacks.count(name) == 0) {
         if (file.type == SoundFile::SoundFileType::PluginFolderFile) {
             if (auto wave = getWavFileFromPath(file.getFullPath()))
-                playbacks[name] = std::make_shared<playbackWavProcessing>(static_cast<short*>(wave->_data.get_ptr()), (wave->_data.get_size() / sizeof(short)) / wave->_spec.channels, wave->_spec.channels, functors);
+                playbacks[name] = std::make_shared<playbackWavProcessing>(static_cast<short*>(wave->_data.get_ptr()), (wave->_data.get_size() / sizeof(short)) / wave->_spec.channels, wave->_spec.channels, functors, wave->_spec.sample_rate);
         } else {
             playbacks[name] = std::make_shared<playbackWavProcessing>(file.samples.data(), file.samples.size(), file.channels, functors);
         }
@@ -280,7 +374,7 @@ std::shared_ptr<clunk::WavFile> PlaybackHandler::getWavFileFromPath(const std::s
         ) {
         std::shared_ptr<clunk::WavFile> wav = std::make_shared<clunk::WavFile>(f);
         wav->read();
-        if (wav->ok() && wav->_spec.channels == 2 && wav->_spec.sample_rate == 48000) {
+        if (isSupportedWavFormat(*wav)) {
             wavCache[filePath] = wav;
         } else {
             Logger::log(LoggerTypes::teamspeakClientlog, "Cannot read Soundfile: " + filePath, LogLevel::LogLevel_ERROR);
@@ -295,8 +389,8 @@ std::shared_ptr<clunk::WavFile> PlaybackHandler::getWavFileFromPath(const std::s
 }
 
 void playbackWavStereo::construct(clunk::WavFile* wavFile, stereoMode stereo, float gain) {
-    if (wavFile->ok() && wavFile->_spec.channels == 2 && wavFile->_spec.sample_rate == 48000 && wavFile->_spec.format == clunk::AudioSpec::S16) {
-        construct(static_cast<short*>(wavFile->_data.get_ptr()), (wavFile->_data.get_size() / sizeof(short)) / wavFile->_spec.channels, wavFile->_spec.channels, stereo, gain);
+    if (isSupportedWavFormat(*wavFile)) {
+        construct(static_cast<short*>(wavFile->_data.get_ptr()), (wavFile->_data.get_size() / sizeof(short)) / wavFile->_spec.channels, wavFile->_spec.channels, stereo, gain, wavFile->_spec.sample_rate);
     } else if (wavFile->ok()) {
         MessageBoxA(0, "Unknown audio file has invalid format.", "Task Force Arrowhead Radio", MB_OK);
     }
@@ -306,7 +400,7 @@ void playbackWavStereo::construct(std::string wavFilePath, stereoMode stereo, fl
     if (FILE *f = fopen(wavFilePath.c_str(), "rb")) {
         auto wav = new clunk::WavFile(f);
         wav->read();
-        if (!wav->ok() || wav->_spec.channels != 2 || wav->_spec.sample_rate != 48000 || wav->_spec.format != clunk::AudioSpec::S16) {
+        if (!isSupportedWavFormat(*wav)) {
             const auto message = "File " + wavFilePath + " has invalid format.";
             MessageBoxA(0, message.c_str(), "Task Force Arrowhead Radio", MB_OK);
         } else {
@@ -319,8 +413,8 @@ void playbackWavStereo::construct(std::string wavFilePath, stereoMode stereo, fl
     }
 }
 
-void playbackWavStereo::construct(const short* samples, size_t sampleCount, uint8_t channels, stereoMode stereo, float gain) {
-    sampleStore.assign(samples, samples + sampleCount * 2);
+void playbackWavStereo::construct(const short* samples, size_t sampleCount, uint8_t channels, stereoMode stereo, float gain, std::uint32_t sourceSampleRate) {
+    appendStereoFramesAtRate(sampleStore, samples, sampleCount, channels, sourceSampleRate);
 
     //Behaviour of this code changed as you can see, we already copy samples into sampleStore, so we don't need to copy anything. We just need to set stuff to 0
 
@@ -337,7 +431,7 @@ void playbackWavStereo::construct(const short* samples, size_t sampleCount, uint
     } else if (stereo == stereoMode::leftOnly) {
         const auto target = sampleStore.data();
         uint32_t posInTarget = 0;
-        for (uint32_t q = 0; q < sampleCount*channels; q += channels) {
+        for (uint32_t q = 0; q < sampleStore.size(); q += 2) {
             //target[posInTarget++] = samples[q];//only copy left channel
             posInTarget++; //leave left channel
             target[posInTarget++] = 0;//set right channel 0
@@ -346,7 +440,7 @@ void playbackWavStereo::construct(const short* samples, size_t sampleCount, uint
     } else if (stereo == stereoMode::rightOnly) {
         const auto target = sampleStore.data();
         uint32_t posInTarget = 0;
-        for (uint32_t q = 0; q < sampleCount*channels; q += channels) {
+        for (uint32_t q = 0; q < sampleStore.size(); q += 2) {
             //posInTarget++;//leave left channel 0
             //target[posInTarget++] = samples[q + 1];//only copy right channel
 
@@ -355,7 +449,7 @@ void playbackWavStereo::construct(const short* samples, size_t sampleCount, uint
 
         }
     }
-    SampleBuffer(sampleStore.data(), sampleCount, 2).applyGain(gain);
+    SampleBuffer(sampleStore.data(), sampleStore.size() / 2, 2).applyGain(gain);
 }
 
 playbackWavStereo::playbackWavStereo(const short* samples, size_t sampleCount, uint8_t channels, stereoMode stereo, float gain /*= 1.0f*/) : currentPosition(0) {
@@ -432,38 +526,20 @@ size_t playbackWavRaw::cleanSamples(size_t sampleCount) {
 }
 
 void playbackWavRaw::appendSamples(const short* samples, size_t sampleCount, uint8_t channels) {
-    sampleStore.reserve(sampleStore.size() + (sampleCount * 2));
-    const auto previousEnd = &(*sampleStore.insert(sampleStore.end(), samples, samples + (sampleCount * 2)));
-    //Even if channelcount is not 2 we still want to set the new vector size
-    //If its not stereo we overwrite the data again with the proper 2 channel stuff
-    if (channels != 2) {
-        uint32_t posInTarget = 0;
-        for (uint32_t q = 0; q < sampleCount; q += channels) {
-            previousEnd[posInTarget++] = samples[q];//copy left channel
-            previousEnd[posInTarget++] = samples[q + 1];//copy right channel
-        }
-    }
+    appendStereoFrames(sampleStore, samples, sampleCount, channels);
 }
 
-playbackWavProcessing::playbackWavProcessing(const short* samples, size_t sampleCount, int channels, std::vector<std::function<void(SampleBuffer&)>> processors)
+playbackWavProcessing::playbackWavProcessing(const short* samples, size_t sampleCount, int channels, std::vector<std::function<void(SampleBuffer&)>> processors, std::uint32_t sourceSampleRate)
     : currentPosition(0), processingDone(false), myThread(nullptr) {
     functors = processors;
-    const auto previousEnd = &(*sampleStore.insert(sampleStore.end(), samples, samples + (sampleCount * 2)));
-    //Even if channelcount is not 2 we still want to set the new vector size
-    //If its not stereo we overwrite the data again with the proper 2 channel stuff
-    if (channels != 2) {
-        size_t posInTarget = 0;
-        for (size_t q = 0; q < sampleCount; q += channels) {
-            previousEnd[posInTarget++] = samples[q];//copy left channel
-            previousEnd[posInTarget++] = samples[q + 1];//copy right channel
-        }
-    }
+    appendStereoFramesAtRate(sampleStore, samples, sampleCount, static_cast<uint8_t>(channels), sourceSampleRate);
+    const auto processedSampleCount = sampleStore.size() / 2;
 #ifdef DEBUG_PLAYBACK_TIMES
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 #endif
-    myThread = new std::thread([this, sampleCount]() {
+    myThread = new std::thread([this, processedSampleCount]() {
         ProfileFunctionN("process audio functors");
-        SampleBuffer buf(sampleStore.data(), sampleCount, 2);
+        SampleBuffer buf(sampleStore.data(), processedSampleCount, 2);
         for (auto& it : functors) {
             it(buf);
         }

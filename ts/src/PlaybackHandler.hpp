@@ -134,7 +134,7 @@ public:
     //************************************
     playbackType type() override { return playbackType::stereo; }
 private:
-    void construct(const short* samples, size_t sampleCount, uint8_t channels, stereoMode stereo, float gain); //#DOCS
+    void construct(const short* samples, size_t sampleCount, uint8_t channels, stereoMode stereo, float gain, std::uint32_t sourceSampleRate = 0); //#DOCS
     void construct(clunk::WavFile* wavFile, stereoMode stereo, float gain);  //#DOCS
     void construct(std::string wavFilePath, stereoMode stereo, float gain);	//#DOCS
     std::vector<short> sampleStore;
@@ -205,7 +205,7 @@ private:
 //************************************
 class playbackWavProcessing : public playbackBase {
 public:
-    playbackWavProcessing(const short* samples, size_t sampleCount, int channels, std::vector<std::function<void(SampleBuffer&)>> processors); //#DOCS
+    playbackWavProcessing(const short* samples, size_t sampleCount, int channels, std::vector<std::function<void(SampleBuffer&)>> processors, std::uint32_t sourceSampleRate = 0); //#DOCS
     virtual ~playbackWavProcessing() {if (myThread) {
         if (myThread->joinable())
             myThread->join();
@@ -338,4 +338,3 @@ private:
     std::shared_ptr<clunk::WavFile> getWavFileFromPath(const std::string& filePath);
     CriticalSectionLock playbackCriticalSection{ "PlaybackHandler" };
 };
-

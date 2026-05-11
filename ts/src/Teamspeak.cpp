@@ -788,7 +788,7 @@ const char* ts3plugin_name() {
 
 /* Plugin version */
 const char* ts3plugin_version() {
-    return PLUGIN_VERSION;
+    return PLUGIN_VERSION_DISPLAY;
 }
 
 /* Plugin author */

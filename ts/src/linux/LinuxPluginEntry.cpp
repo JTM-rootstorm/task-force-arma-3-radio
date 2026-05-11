@@ -6,6 +6,7 @@
 #include "../../include/public_errors.h"
 #include "../../include/ts3_functions.h"
 #include "../transport/LinuxBridgeServer.hpp"
+#include "../version.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +18,7 @@
 namespace {
 
 constexpr int kPluginApiVersion = 26;
-constexpr std::string_view kPluginVersion = "0.0.0-linux-alpha";
+constexpr std::string_view kPluginVersion = PLUGIN_VERSION_DISPLAY;
 constexpr std::string_view kMetadataStart = "<TFAR>";
 constexpr std::string_view kMetadataEnd = "</TFAR>";
 std::unique_ptr<tfar::LinuxBridgeServer> bridgeServer;

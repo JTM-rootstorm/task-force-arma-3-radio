@@ -106,7 +106,7 @@ std::string getConnectionStatusInfo(bool pipeConnected, bool inGame, bool includ
     stringStream << "Connected to Game: " << (pipeConnected ? "[B]Yes[/B]" : "[B]No[/B]") << std::endl;
     stringStream << "Playing: " << (inGame ? "[B]Yes[/B]" : "[B]No[/B]") << std::endl;
     if (includeVersion) {
-        stringStream << "Plugin version: [B]" << PLUGIN_VERSION << "[/B]" << std::endl;
+        stringStream << "Plugin version: [B]" << PLUGIN_VERSION_DISPLAY << "[/B]" << std::endl;
         stringStream << "Addon version: [B]" << TFAR::config.get<std::string>(Setting::addon_version) << "[/B]" << std::endl;
     }
     return stringStream.str();
