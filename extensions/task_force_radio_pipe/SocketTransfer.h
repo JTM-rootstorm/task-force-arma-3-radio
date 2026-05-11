@@ -36,9 +36,10 @@ private:
     void asyncWorkerLoop();
     bool sendSyncCommandLocked(const std::string& command, std::string& response);
     static bool isHighPriorityAsyncCommand(const std::string& command);
+    static bool isCachedSyncCommand(const std::string& command);
     static bool isCachedSpeakingCommand(const std::string& command);
-    static std::string defaultSpeakingResponse(const std::string& command);
-    std::string cachedSpeakingResponse(const std::string& command);
+    static std::string defaultCachedSyncResponse(const std::string& command);
+    std::string cachedSyncResponse(const std::string& command);
     void writeOutput(char* output, int outputSize, const std::string& text) const;
     std::string bridgeHost() const;
     std::uint16_t bridgePort() const;

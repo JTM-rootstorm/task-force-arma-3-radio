@@ -88,9 +88,9 @@ void SocketTransfer::transactMessage(char* output, int outputSize, const char* i
     const bool needsSynchronousAnswer = command == "DFRAME";
     const bool async = asyncMarker && !needsSynchronousAnswer;
 
-    if (!async && isCachedSpeakingCommand(command)) {
+    if (!async && isCachedSyncCommand(command)) {
         queueCachedSyncRefresh(command);
-        writeOutput(output, outputSize, cachedSpeakingResponse(command));
+        writeOutput(output, outputSize, cachedSyncResponse(command));
         return;
     }
 
@@ -290,7 +290,7 @@ void SocketTransfer::asyncWorkerLoop() {
             }
         }
 
-        if (isCachedSpeakingCommand(command)) {
+        if (isCachedSyncCommand(command)) {
             std::string response;
             std::lock_guard<std::mutex> socketLock(socketMutex_);
             if (ensureConnectedLocked() && sendSyncCommandLocked(command, response)) {
@@ -335,13 +335,20 @@ bool SocketTransfer::isHighPriorityAsyncCommand(const std::string& command) {
     return commandName != "POS" && commandName != "TRACK" && commandName != "collectDebugInfo";
 }
 
+bool SocketTransfer::isCachedSyncCommand(const std::string& command) {
+    return command == "DFRAME" || isCachedSpeakingCommand(command);
+}
+
 bool SocketTransfer::isCachedSpeakingCommand(const std::string& command) {
     return command == "IS_SPEAKING" ||
            command.rfind("IS_SPEAKING\t", 0) == 0 ||
            command.rfind("IS_SPEAKING_BULK\t", 0) == 0;
 }
 
-std::string SocketTransfer::defaultSpeakingResponse(const std::string& command) {
+std::string SocketTransfer::defaultCachedSyncResponse(const std::string& command) {
+    if (command == "DFRAME") {
+        return "OK";
+    }
     if (command.rfind("IS_SPEAKING_BULK\t", 0) != 0) {
         return "00";
     }
@@ -358,12 +365,12 @@ std::string SocketTransfer::defaultSpeakingResponse(const std::string& command) 
     return response;
 }
 
-std::string SocketTransfer::cachedSpeakingResponse(const std::string& command) {
+std::string SocketTransfer::cachedSyncResponse(const std::string& command) {
     std::lock_guard<std::mutex> lock(cachedSyncMutex_);
     if (const auto found = cachedSyncResponses_.find(command); found != cachedSyncResponses_.end()) {
         return found->second;
     }
-    return defaultSpeakingResponse(command);
+    return defaultCachedSyncResponse(command);
 }
 
 bool SocketTransfer::sendFrame(tfar::bridge::Type type, std::uint32_t sequence, const std::string& payload) {
