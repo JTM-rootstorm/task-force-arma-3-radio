@@ -35,6 +35,8 @@ The experimental `TFAR_linux_x64.so` target currently proves native load/shutdow
 
 The Linux target baseline is TeamSpeak 3 Client 3.6.2, which expects TeamSpeak plugin API 26. The plugin must report API 26 for that client line.
 
+The skeleton publishes TFAR client metadata when the Proton bridge socket connects, so TeamSpeak can show the bridge-level `Connected to Game` state during testing. That status means the socket is connected, not that radio gameplay is implemented.
+
 Until the full TFAR command processor is built into the Linux plugin, sync commands return `bridge command processor unavailable` immediately. This avoids freezing Arma on repeated 1000 ms timeouts, but it also means the addon will remain disconnected rather than playable.
 
 ## Defaults
