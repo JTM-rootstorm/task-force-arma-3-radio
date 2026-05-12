@@ -1,6 +1,7 @@
 #include "Platform.hpp"
 
 #include <cstdlib>
+#include <filesystem>
 #include <thread>
 
 #ifdef _WIN32
@@ -70,11 +71,17 @@ std::string userConfigDirectory() {
 #else
     const char* xdgConfig = std::getenv("XDG_CONFIG_HOME");
     if (xdgConfig != nullptr && *xdgConfig != '\0') {
-        return appendFileName(xdgConfig, "tfar");
+        const auto configPath = appendFileName(xdgConfig, "tfar");
+        std::error_code error;
+        std::filesystem::create_directories(configPath, error);
+        return configPath;
     }
     const char* home = std::getenv("HOME");
     if (home != nullptr && *home != '\0') {
-        return appendFileName(appendFileName(home, ".config"), "tfar");
+        const auto configPath = appendFileName(appendFileName(home, ".config"), "tfar");
+        std::error_code error;
+        std::filesystem::create_directories(configPath, error);
+        return configPath;
     }
     return {};
 #endif

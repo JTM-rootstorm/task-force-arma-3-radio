@@ -679,6 +679,7 @@ void CommandProcessor::process_tangent_off(PTTDelayArguments arguments) {
 }
 
 void CommandProcessor::disableVoiceAndSendCommand(std::string_view commandToBroadcast, TSServerID currentServerConnectionHandlerID, bool pressed) {
+    Logger::log(LoggerTypes::pluginCommands, std::string("Send tangent pressed=") + (pressed ? "true " : "false ") + std::string(commandToBroadcast));
     Teamspeak::setVoiceDisabled(currentServerConnectionHandlerID, !(pressed || vadEnabled));
     Teamspeak::sendPluginCommand(currentServerConnectionHandlerID, TFAR::getInstance().getPluginID(), commandToBroadcast, PluginCommandTarget_CURRENT_CHANNEL);
 }
