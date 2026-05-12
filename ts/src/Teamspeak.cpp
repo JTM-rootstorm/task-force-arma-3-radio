@@ -182,6 +182,10 @@ void Teamspeak::setClientMute(TSServerID serverConnectionHandlerID, TSClientID c
     auto isAlreadyMuted = serverDataDir.getClientMuteStatus(clientID);
     if (isAlreadyMuted == mute) return; //Client already in state
 
+    Logger::log(LoggerTypes::pluginCommands,
+        "setClientMute client=" + std::to_string(clientID.baseType()) +
+        " nick=" + getClientNickname(serverConnectionHandlerID, clientID) +
+        " mute=" + (mute ? "true" : "false"));
     serverDataDir.setClientMuteStatus(clientID, mute);
 
     DWORD error;

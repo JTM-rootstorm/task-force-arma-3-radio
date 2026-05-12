@@ -2,8 +2,7 @@
 
 ## TeamSpeak Does Not Show the Plugin
 
-- Confirm `TFAR_win64_x64.so` is in the TeamSpeak plugin directory.
-- Remove or disable any older `TFAR_linux_x64.so`; that filename uses the wrong TeamSpeak plugin-command namespace for Windows TFAR interoperability.
+- Confirm `TFAR_linux_x64.so` is in the TeamSpeak plugin directory.
 - Confirm the file is readable and executable.
 - Check TeamSpeak client logs for plugin API mismatch.
 - Confirm the build architecture is x86_64.

@@ -70,6 +70,33 @@ bool isTfarPluginCommandName(const char* pluginName) {
     return !pluginId.empty() && name == std::string_view(pluginId);
 }
 
+void logIfChanged(std::map<std::string, std::string>& cache, const std::string& key, const std::string& message) {
+    const auto found = cache.find(key);
+    if (found != cache.end() && found->second == message) {
+        return;
+    }
+    cache[key] = message;
+    Logger::log(LoggerTypes::pluginCommands, message);
+}
+
+void logMuteDecisionIfChanged(TSServerID serverId, TSClientID clientId, const std::string& message) {
+    static std::map<std::string, std::string> lastMuteDecisions;
+    logIfChanged(lastMuteDecisions,
+        std::to_string(serverId.baseType()) + ":" + std::to_string(clientId.baseType()),
+        message);
+}
+
+void logPluginEnabledIfChanged(TSServerID serverId, TSClientID clientId, const std::string& message) {
+    static std::map<std::string, std::string> lastPluginEnabledDecisions;
+    logIfChanged(lastPluginEnabledDecisions,
+        std::to_string(serverId.baseType()) + ":" + std::to_string(clientId.baseType()),
+        message);
+}
+
+std::string boolString(bool value) {
+    return value ? "true" : "false";
+}
+
 void broadcastOwnVoiceVolumeStatus(TSServerID serverId, bool talking) {
     if (!TFAR::getInstance().getCurrentlyInGame()) return;
 
@@ -104,28 +131,48 @@ float effectErrorFromDistance(sendingRadioType radioType, float distance, std::s
 
 void setGameClientMuteStatus(TSServerID serverConnectionHandlerID, TSClientID clientID, std::pair<bool, bool> isOverRadio = { false,false }) {
     bool mute = false;
-    if (isSeriousModeEnabled(serverConnectionHandlerID, clientID) && !TFAR::config.get<bool>(Setting::disableAutomaticMute)) {
+    const bool seriousMode = isSeriousModeEnabled(serverConnectionHandlerID, clientID);
+    const bool automaticMuteDisabled = TFAR::config.get<bool>(Setting::disableAutomaticMute);
+    std::ostringstream decision;
+    decision << "muteDecision client=" << clientID.baseType()
+        << " nick=" << Teamspeak::getClientNickname(serverConnectionHandlerID, clientID)
+        << " serious=" << boolString(seriousMode)
+        << " autoMuteDisabled=" << boolString(automaticMuteDisabled);
+    if (seriousMode && !automaticMuteDisabled) {
 
         const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(serverConnectionHandlerID);
         std::shared_ptr<clientData> clientData;
         if (clientDataDir)
             clientData = clientDataDir->getClientData(clientID);
-        auto myData = clientDataDir->myClientData;
+        auto myData = clientDataDir ? clientDataDir->myClientData : nullptr;
+        decision << " hasClientData=" << boolString(static_cast<bool>(clientData))
+            << " hasMyData=" << boolString(static_cast<bool>(myData));
         if (clientData == myData) return; //can't mute self... well you can but don't that's confusing to users
 
         if (clientData && myData && (TFAR::getInstance().m_gameData.alive && clientData->isAlive() || myData->isSpectating)) {
             auto distance = myData->getClientPosition().distanceTo(clientData->getClientPosition());
             mute = distance > (clientData->voiceVolume + 15);
+            decision << " alive=" << boolString(TFAR::getInstance().m_gameData.alive)
+                << " clientAlive=" << boolString(clientData->isAlive())
+                << " mySpectating=" << boolString(myData->isSpectating)
+                << " distance=" << distance
+                << " voiceLimit=" << (clientData->voiceVolume + 15)
+                << " initialDistanceMute=" << boolString(mute);
             
             if (mute) {//If he is in range we don't need to check if we can hear him over radio as we can hear anyway.
                 const bool isOnRadio = isOverRadio.first ? isOverRadio.second : !clientData->isOverRadio(myData, false, false).empty();
+                decision << " radioKnown=" << boolString(isOverRadio.first)
+                    << " overRadio=" << boolString(isOnRadio);
                 mute = !isOnRadio;
             }
         } else {
             mute = true;
+            decision << " forcedMuteNoAliveData=true";
         }
         if (mute && clientData) clientData->effects.resetVoices();
     }
+    decision << " mute=" << boolString(mute);
+    logMuteDecisionIfChanged(serverConnectionHandlerID, clientID, decision.str());
     Teamspeak::setClientMute(serverConnectionHandlerID, clientID, mute);
 }
 
@@ -456,16 +503,33 @@ bool isPluginEnabledForUser(TSServerID serverConnectionHandlerID, TSClientID cli
     auto currentTime = std::chrono::system_clock::now();
     bool result;
 
+    std::string source = "cache";
+    std::string clientInfo;
     if (currentTime - clientData->pluginEnabledCheck < 10s) {
         result = clientData->pluginEnabled;
     } else {
-        std::string clientInfo = Teamspeak::getMetaData(Teamspeak::getCurrentServerConnection(), clientID);
-        if (clientInfo.empty()) return false;
+        source = "metadata";
+        clientInfo = Teamspeak::getMetaData(Teamspeak::getCurrentServerConnection(), clientID);
+        if (clientInfo.empty()) {
+            logPluginEnabledIfChanged(serverConnectionHandlerID, clientID,
+                "pluginEnabled client=" + std::to_string(clientID.baseType()) +
+                " nick=" + Teamspeak::getClientNickname(serverConnectionHandlerID, clientID) +
+                " enabled=false source=metadata metadataEmpty=true");
+            return false;
+        }
         std::string shouldStartWith = getConnectionStatusInfo(true, true, false);  //slow
         result = clientData->pluginEnabled = helpers::startsWith(shouldStartWith, clientInfo);
     }
 
     clientData->pluginEnabledCheck = currentTime;
+    std::string message = "pluginEnabled client=" + std::to_string(clientID.baseType()) +
+        " nick=" + Teamspeak::getClientNickname(serverConnectionHandlerID, clientID) +
+        " enabled=" + boolString(result) +
+        " source=" + source;
+    if (!clientInfo.empty()) {
+        message += " metadataPrefix=" + clientInfo.substr(0, 80);
+    }
+    logPluginEnabledIfChanged(serverConnectionHandlerID, clientID, message);
 
     return result;
 }

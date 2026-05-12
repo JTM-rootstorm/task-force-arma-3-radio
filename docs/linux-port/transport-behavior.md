@@ -18,7 +18,7 @@ The Proton socket transport now lives in `tfar_proton_bridge_x64.dll`. The Arma-
 
 ## Phase 4 Linux Bridge Baseline
 
-The Linux `TFAR_linux_x64` target now links the full TFAR `CommandProcessor`, TeamSpeak callback surface, Clunk audio stack, DSP filters, SQLite, and the loopback `LinuxBridgeServer`. The output file is `TFAR_win64_x64.so` so TeamSpeak uses the Windows x64 TFAR plugin-command namespace.
+The Linux `TFAR_linux_x64.so` target now links the full TFAR `CommandProcessor`, TeamSpeak callback surface, Clunk audio stack, DSP filters, SQLite, and the loopback `LinuxBridgeServer`.
 
 On Linux, `plugin.cpp` creates `LinuxBridgeServer` as the `IGameTransport`. The shared command loop is otherwise the same transport-agnostic loop:
 
@@ -34,9 +34,9 @@ The local validation baseline for this phase is:
 - `cmake -S ts -B build/tfar-linux -DTFAR_LINUX_PLUGIN=ON -DTFAR_BRIDGE_PROTOCOL_TESTS=ON`
 - `cmake --build build/tfar-linux --config Release`
 - `ctest --test-dir build/tfar-linux --output-on-failure`
-- Loading `build/tfar-linux/TFAR_win64_x64.so` with `ctypes.CDLL` succeeds.
+- Loading `build/tfar-linux/TFAR_linux_x64.so` with `ctypes.CDLL` succeeds.
 - `ts3plugin_apiVersion()` returns `26` for the Linux TeamSpeak 3.6.2 target.
-- `ldd -r build/tfar-linux/TFAR_win64_x64.so` reports no unresolved plugin-owned symbols.
+- `ldd -r build/tfar-linux/TFAR_linux_x64.so` reports no unresolved plugin-owned symbols.
 
 ## Command Inventory
 
