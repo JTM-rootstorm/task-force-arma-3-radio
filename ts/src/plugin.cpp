@@ -908,7 +908,9 @@ void processTangentPress(TSServerID serverId, const std::vector<std::string_view
     if (!clientDataDir) return;
     auto senderClientData = clientDataDir->getClientData(nickname);
     if (!senderClientData) {
-        log_string(std::string("PLUGIN FROM UNKNOWN NICKNAME ").append(nickname));
+        const auto message = std::string("PLUGIN FROM UNKNOWN NICKNAME ").append(nickname);
+        Logger::log(LoggerTypes::pluginCommands, message);
+        log_string(message);
         return;
     }
     auto myClientData = clientDataDir->myClientData;
@@ -1063,7 +1065,10 @@ void processPluginCommand(std::string_view command) {
     } else if (tokens.size() == 4 && tokens[0] == "VOLUME"sv) {
         auto nickname = tokens[1];
         auto clientData = clientDataDir->getClientData(nickname);
-        if (!clientData) return; //Don't know who the sender is.. so we don't care
+        if (!clientData) {
+            Logger::log(LoggerTypes::pluginCommands, std::string("VOLUME FROM UNKNOWN NICKNAME ").append(nickname));
+            return; //Don't know who the sender is.. so we don't care
+        }
 
         const auto volume = tokens[2];
         const bool start = helpers::isTrue(tokens[3]);

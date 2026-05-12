@@ -12,6 +12,26 @@
 using namespace dataType;
 struct TS3Functions ts3Functions;
 
+namespace {
+
+std::string pluginTargetModeName(PluginTargetMode targetMode) {
+    switch (targetMode) {
+        case PluginCommandTarget_CURRENT_CHANNEL:
+            return "current_channel";
+        case PluginCommandTarget_SERVER:
+            return "server";
+        case PluginCommandTarget_CLIENT:
+            return "client";
+        case PluginCommandTarget_CURRENT_CHANNEL_SUBSCRIBED_CLIENTS:
+            return "current_channel_subscribed_clients";
+        case PluginCommandTarget_MAX:
+            return "max";
+    }
+    return "unknown";
+}
+
+} // namespace
+
 std::vector<dataType::TSClientID> TeamspeakServerData::getMutedClients() {
     LockGuard_shared lock(m_criticalSection);
 
@@ -429,6 +449,11 @@ void Teamspeak::_updateChanneNameCache(TSServerID serverConnectionHandlerID) {
 }
 
 void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::string_view pluginID, std::string_view command, PluginTargetMode targetMode, std::vector<TSClientID> targets) {
+    Logger::log(LoggerTypes::pluginCommands,
+        "sendPluginCommand id=" + std::string(pluginID) +
+        " target=" + pluginTargetModeName(targetMode) +
+        " targets=" + std::to_string(targets.size()) +
+        " command=" + std::string(command));
     if (targets.empty())
         ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, nullptr, nullptr);
     else {
@@ -834,6 +859,7 @@ void ts3plugin_registerPluginID(const char* id) {
     TFAR::getInstance().setPluginID(id);
 
     const auto message = std::string("registerPluginID: ") + std::string(id);
+    Logger::log(LoggerTypes::pluginCommands, message);
     Logger::log(LoggerTypes::teamspeakClientlog, message, LogLevel_INFO);
 }
 
