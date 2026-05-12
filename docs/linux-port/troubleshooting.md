@@ -2,7 +2,8 @@
 
 ## TeamSpeak Does Not Show the Plugin
 
-- Confirm `TFAR_linux_x64.so` is in the TeamSpeak plugin directory.
+- Confirm `TFAR_win64_x64.so` is in the TeamSpeak plugin directory.
+- Confirm stale `TFAR_linux_x64.so` copies are removed or disabled; that filename uses a separate TeamSpeak command namespace and cannot exchange VOLUME/TANGENT commands with Windows clients.
 - Confirm the file is readable and executable.
 - Check TeamSpeak client logs for plugin API mismatch.
 - Confirm the build architecture is x86_64.
@@ -12,6 +13,7 @@ Common plugin paths to check:
 ```text
 ~/.ts3client/plugins/
 ~/.local/share/TeamSpeak 3/plugins/
+~/.var/app/com.teamspeak.TeamSpeak3/.ts3client/plugins/
 ```
 
 Flatpak TeamSpeak may use a sandboxed path.
