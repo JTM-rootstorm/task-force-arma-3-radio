@@ -26,7 +26,7 @@ ctest --test-dir build/tfar-linux --output-on-failure
 Expected artifact:
 
 ```text
-build/tfar-linux/TFAR_linux_x64.so
+build/tfar-linux/TFAR_win64_x64.so
 ```
 
 ## Export Checks
@@ -83,7 +83,7 @@ task_force_radio_pipe_x64.dll
 tfar_proton_bridge_x64.dll
 ```
 
-Install `TFAR_linux_x64.so` into the native Linux TeamSpeak plugin directory. For Flatpak TeamSpeak, that is usually:
+Install `TFAR_win64_x64.so` into the native Linux TeamSpeak plugin directory. For Flatpak TeamSpeak, that is usually:
 
 ```text
 ~/.var/app/com.teamspeak.TeamSpeak3/config/ts3client/plugins/

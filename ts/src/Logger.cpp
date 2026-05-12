@@ -14,6 +14,7 @@ extern struct TS3Functions ts3Functions;
 FileLogger::FileLogger(const std::string& filePath) : file(filePath) {}
 
 void FileLogger::log(const std::string& message) {
+    std::lock_guard<std::mutex> lock(mutex);
     if (file.is_open()) {
         const auto now = std::chrono::system_clock::now();
         auto inTimeT = std::chrono::system_clock::to_time_t(now);

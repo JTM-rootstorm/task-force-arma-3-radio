@@ -30,7 +30,10 @@ if [[ -z "$TS3_PLUGIN_DIR" ]]; then
 fi
 
 echo "Installing TeamSpeak plugin to: $TS3_PLUGIN_DIR"
-backup_copy "$ROOT_DIR/plugins/linux/TFAR_linux_x64.so" "$TS3_PLUGIN_DIR/TFAR_linux_x64.so"
+if [[ -e "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" ]]; then
+    mv "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" "$TS3_PLUGIN_DIR/TFAR_linux_x64.so.disabled.$(date +%Y%m%d%H%M%S)"
+fi
+backup_copy "$ROOT_DIR/plugins/linux/TFAR_win64_x64.so" "$TS3_PLUGIN_DIR/TFAR_win64_x64.so"
 
 if [[ -n "$ARMA_MOD_DIR" ]]; then
     echo "Installing Proton bridge DLL under: $ARMA_MOD_DIR"

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <mutex>
 #include <vector>
 #include <memory>
 #include <cstdint>
@@ -31,6 +32,7 @@ public:
     void log(const std::string& message, LogLevel _loglevel) override;
 private:
     std::ofstream file;
+    std::mutex mutex;
 };
 
 class TeamspeakLogger : public ILogger {

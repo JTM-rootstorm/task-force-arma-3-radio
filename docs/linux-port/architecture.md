@@ -4,9 +4,11 @@
 
 ### Native Linux TeamSpeak plugin
 
-Build artifact: `TFAR_linux_x64.so`
+Build artifact: `TFAR_win64_x64.so`
 
 The Linux plugin owns the bridge server. It binds to `127.0.0.1`, accepts one Proton-side Arma extension connection, receives framed TFAR commands, and exposes them through `IGameTransport`.
+
+The file name intentionally maps TeamSpeak plugin-command traffic to the existing Windows x64 TFAR namespace (`TFAR_win64`) so mixed Linux/Windows clients can exchange radio and voice state commands.
 
 ### Arma extension runtime loader
 

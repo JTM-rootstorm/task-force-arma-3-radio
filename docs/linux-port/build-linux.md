@@ -18,16 +18,18 @@ cmake --build build/tfar-linux --target TFAR_linux_x64
 Expected artifact:
 
 ```text
-build/tfar-linux/TFAR_linux_x64.so
+build/tfar-linux/TFAR_win64_x64.so
 ```
 
-This target builds a native Linux TeamSpeak plugin with the TFAR command processor, audio/radio runtime, Linux bridge server, Clunk, DSP filters, and SQLite linked into `TFAR_linux_x64.so`.
+This target builds a native Linux TeamSpeak plugin with the TFAR command processor, audio/radio runtime, Linux bridge server, Clunk, DSP filters, and SQLite linked into `TFAR_win64_x64.so`.
+
+The target remains named `TFAR_linux_x64`, but the output filename intentionally uses the `TFAR_win64` TeamSpeak plugin-command namespace so Linux clients can exchange radio and voice state commands with existing Windows TFAR clients.
 
 Before installing or packaging the artifact, verify that it loads and has no unresolved plugin-owned symbols:
 
 ```sh
-python3 -c 'import ctypes; lib=ctypes.CDLL("build/tfar-linux/TFAR_linux_x64.so"); lib.ts3plugin_apiVersion.restype=ctypes.c_int; print(lib.ts3plugin_apiVersion())'
-ldd -r build/tfar-linux/TFAR_linux_x64.so
+python3 -c 'import ctypes; lib=ctypes.CDLL("build/tfar-linux/TFAR_win64_x64.so"); lib.ts3plugin_apiVersion.restype=ctypes.c_int; print(lib.ts3plugin_apiVersion())'
+ldd -r build/tfar-linux/TFAR_win64_x64.so
 ```
 
 The supported Linux TeamSpeak baseline is TeamSpeak 3 Client 3.6.2. It expects plugin API 26, so `ts3plugin_apiVersion()` must return 26 for that client line.
