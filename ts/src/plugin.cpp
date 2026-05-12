@@ -69,6 +69,22 @@ bool isTfarPluginCommandName(const char* pluginName) {
     const auto pluginId = TFAR::getInstance().getPluginID();
     return !pluginId.empty() && name == std::string_view(pluginId);
 }
+
+void broadcastOwnVoiceVolumeStatus(TSServerID serverId, bool talking) {
+    if (!TFAR::getInstance().getCurrentlyInGame()) return;
+
+    const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(serverId);
+    if (clientDataDir && clientDataDir->myClientData) {
+        const bool changed = clientDataDir->myClientData->clientTalkingNow != talking;
+        clientDataDir->myClientData->clientTalkingNow = talking;
+        if (!changed) return;
+    }
+
+    const auto myNickname = Teamspeak::getMyNickname(serverId);
+    const auto command = "VOLUME\t" + myNickname + "\t" + std::to_string(TFAR::getInstance().m_gameData.myVoiceVolume) + "\t" + (talking ? "true" : "false");
+    Logger::log(LoggerTypes::pluginCommands, "Send " + command);
+    Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_CURRENT_CHANNEL);
+}
 }
 
 bool isSeriousModeEnabled(TSServerID serverConnectionHandlerID, TSClientID clientId) {
@@ -179,6 +195,13 @@ void ServiceThread() {
         if ((std::chrono::system_clock::now() - lastInfoUpdate.load()) > 4000ms) {
             updateUserStatusInfo(true);
             lastInfoUpdate = std::chrono::system_clock::now();
+        }
+        if (TFAR::getInstance().getCurrentlyInGame()) {
+            const auto serverId = Teamspeak::getCurrentServerConnection();
+            const auto myId = Teamspeak::getMyId(serverId);
+            if (myId) {
+                broadcastOwnVoiceVolumeStatus(serverId, Teamspeak::isTalking(serverId, myId));
+            }
         }
         tfar::platform::sleepFor(100ms);
     }
@@ -834,17 +857,7 @@ void ts3plugin_onClientSelfVariableUpdateEvent(uint64 serverConnectionHandlerID,
     ProfileFunction;
     if (flag == CLIENT_FLAG_TALKING && TFAR::getInstance().getCurrentlyInGame()) {
         std::string one = "1";
-        const bool start = one == newValue;
-
-        const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(serverConnectionHandlerID);
-        if (clientDataDir && clientDataDir->myClientData) {
-            clientDataDir->myClientData->clientTalkingNow = start;
-        }
-        const auto serverId = Teamspeak::getCurrentServerConnection();
-        const auto myNickname = Teamspeak::getMyNickname(serverId);
-        const auto command = "VOLUME\t" + myNickname + "\t" + std::to_string(TFAR::getInstance().m_gameData.myVoiceVolume) + "\t" + (start ? "true" : "false");
-        Logger::log(LoggerTypes::pluginCommands, "Send " + command);
-        Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_CURRENT_CHANNEL);
+        broadcastOwnVoiceVolumeStatus(serverConnectionHandlerID, one == newValue);
     }
 
     /*
@@ -868,6 +881,12 @@ void ts3plugin_onClientSelfVariableUpdateEvent(uint64 serverConnectionHandlerID,
         }
     }
     */
+}
+
+void ts3plugin_onTalkStatusChangeEvent(uint64 serverConnectionHandlerID, int status, int isReceivedWhisper, anyID clientID) {
+    ProfileFunction;
+    if (clientID != Teamspeak::getMyId(serverConnectionHandlerID).baseType()) return;
+    broadcastOwnVoiceVolumeStatus(serverConnectionHandlerID, status != STATUS_NOT_TALKING);
 }
 
 void processAllTangentRelease(TSServerID serverId, const std::vector<std::string_view> &tokens) {

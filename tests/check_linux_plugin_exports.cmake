@@ -19,6 +19,7 @@ set(required_exports
     ts3plugin_onEditCapturedVoiceDataEvent
     ts3plugin_onEditPostProcessVoiceDataEvent
     ts3plugin_onPluginCommandEvent
+    ts3plugin_onTalkStatusChangeEvent
     ts3plugin_setFunctionPointers
 )
 
