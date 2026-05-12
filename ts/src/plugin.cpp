@@ -59,6 +59,18 @@ void log_string(std::string message, LogLevel level) {
     Logger::log(LoggerTypes::teamspeakClientlog, message, level);//Default loglevel is Info
 }
 
+namespace {
+bool isTfarPluginCommandName(const char* pluginName) {
+    if (!pluginName) return false;
+
+    const std::string_view name(pluginName);
+    if (name.substr(0, "TFAR"sv.length()) == "TFAR"sv) return true;
+
+    const auto pluginId = TFAR::getInstance().getPluginID();
+    return !pluginId.empty() && name == std::string_view(pluginId);
+}
+}
+
 bool isSeriousModeEnabled(TSServerID serverConnectionHandlerID, TSClientID clientId) {
     std::string serious_mod_channel_name = TFAR::config.get<std::string>(Setting::serious_channelName);
     return !serious_mod_channel_name.empty() && Teamspeak::isInChannel(serverConnectionHandlerID, clientId, serious_mod_channel_name);
@@ -1063,12 +1075,18 @@ void ts3plugin_onPluginCommandEventNew(uint64 serverConnectionHandlerID, const c
     ts3plugin_onPluginCommandEventOld(serverConnectionHandlerID, pluginName, pluginCommand);
 }
 
+#ifndef _WIN32
+void ts3plugin_onPluginCommandEvent(uint64 serverConnectionHandlerID, const char* pluginName, const char* pluginCommand, anyID invokerClientID, const char* invokerName, const char* invokerUniqueIdentity) {
+    ts3plugin_onPluginCommandEventNew(serverConnectionHandlerID, pluginName, pluginCommand, invokerClientID, invokerName, invokerUniqueIdentity);
+}
+#endif
+
 void ts3plugin_onPluginCommandEventOld(uint64 serverConnectionHandlerID, const char* pluginName, const char* pluginCommand) {
     ProfileFunction;
-    Logger::log(LoggerTypes::pluginCommands, std::string(pluginName) + ":" + std::string(pluginCommand));
-    log_string(std::string("ON PLUGIN COMMAND ") + pluginName + " " + pluginCommand, LogLevel_DEVEL);
+    Logger::log(LoggerTypes::pluginCommands, std::string(pluginName ? pluginName : "<null>") + ":" + std::string(pluginCommand ? pluginCommand : "<null>"));
+    log_string(std::string("ON PLUGIN COMMAND ") + (pluginName ? pluginName : "<null>") + " " + (pluginCommand ? pluginCommand : "<null>"), LogLevel_DEVEL);
     if (Teamspeak::getCurrentServerConnection() == serverConnectionHandlerID) {
-        if (strncmp(pluginName, "TFAR", "TFAR"sv.length()) == 0) {
+        if (pluginCommand && isTfarPluginCommandName(pluginName)) {
             processPluginCommand(std::string_view(pluginCommand));
         } else {
             Logger::log(LoggerTypes::teamspeakClientlog, "Plugin command event failure", LogLevel_ERROR);

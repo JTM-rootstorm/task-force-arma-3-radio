@@ -117,4 +117,12 @@ if(TFAR_LINUX_PLUGIN)
         OUTPUT_NAME "TFAR_linux_x64"
         SUFFIX ".so"
     )
+    if(TFAR_BRIDGE_PROTOCOL_TESTS)
+        add_test(
+            NAME tfar_linux_plugin_exports
+            COMMAND ${CMAKE_COMMAND}
+                -DTFAR_PLUGIN_PATH=$<TARGET_FILE:TFAR_linux_x64>
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/../tests/check_linux_plugin_exports.cmake
+        )
+    endif()
 endif()
