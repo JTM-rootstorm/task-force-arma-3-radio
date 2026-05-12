@@ -93,6 +93,13 @@ void logPluginEnabledIfChanged(TSServerID serverId, TSClientID clientId, const s
         message);
 }
 
+void logTalkStatusIfChanged(TSServerID serverId, TSClientID clientId, const std::string& message) {
+    static std::map<std::string, std::string> lastTalkStatus;
+    logIfChanged(lastTalkStatus,
+        std::to_string(serverId.baseType()) + ":" + std::to_string(clientId.baseType()),
+        message);
+}
+
 std::string boolString(bool value) {
     return value ? "true" : "false";
 }
@@ -499,6 +506,15 @@ bool isPluginEnabledForUser(TSServerID serverConnectionHandlerID, TSClientID cli
     auto clientData = clientDataDir->getClientData(clientID);
     if (!clientData) return false;
 
+    if (clientID == Teamspeak::getMyId(serverConnectionHandlerID)) {
+        clientData->pluginEnabled = true;
+        clientData->pluginEnabledCheck = std::chrono::system_clock::now();
+        logPluginEnabledIfChanged(serverConnectionHandlerID, clientID,
+            "pluginEnabled client=" + std::to_string(clientID.baseType()) +
+            " nick=" + Teamspeak::getClientNickname(serverConnectionHandlerID, clientID) +
+            " enabled=true source=self");
+        return true;
+    }
 
     auto currentTime = std::chrono::system_clock::now();
     bool result;
@@ -949,8 +965,26 @@ void ts3plugin_onClientSelfVariableUpdateEvent(uint64 serverConnectionHandlerID,
 
 void ts3plugin_onTalkStatusChangeEvent(uint64 serverConnectionHandlerID, int status, int isReceivedWhisper, anyID clientID) {
     ProfileFunction;
-    if (clientID != Teamspeak::getMyId(serverConnectionHandlerID).baseType()) return;
-    broadcastOwnVoiceVolumeStatus(serverConnectionHandlerID, status != STATUS_NOT_TALKING);
+    const auto serverId = TSServerID(serverConnectionHandlerID);
+    const auto talkingClientId = TSClientID(clientID);
+    const bool talking = status != STATUS_NOT_TALKING;
+    if (talkingClientId == Teamspeak::getMyId(serverId)) {
+        broadcastOwnVoiceVolumeStatus(serverId, talking);
+        return;
+    }
+
+    const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(serverId);
+    if (!clientDataDir) return;
+    auto clientData = clientDataDir->getClientData(talkingClientId);
+    if (!clientData) return;
+    if (!isPluginEnabledForUser(serverId, talkingClientId)) return;
+
+    clientData->clientTalkingNow = talking;
+    logTalkStatusIfChanged(serverId, talkingClientId,
+        "talkStatus client=" + std::to_string(talkingClientId.baseType()) +
+        " nick=" + Teamspeak::getClientNickname(serverId, talkingClientId) +
+        " talking=" + boolString(talking) +
+        " whisper=" + boolString(isReceivedWhisper != 0));
 }
 
 void processAllTangentRelease(TSServerID serverId, const std::vector<std::string_view> &tokens) {
