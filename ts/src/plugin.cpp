@@ -104,6 +104,11 @@ std::string boolString(bool value) {
     return value ? "true" : "false";
 }
 
+int effectiveVoiceVolume(const clientData& data) {
+    constexpr int kDefaultDirectVoiceVolume = 20;
+    return data.voiceVolume > 0 ? data.voiceVolume : kDefaultDirectVoiceVolume;
+}
+
 void requestRemoteVolumeStatusIfDue(TSServerID serverId, TSClientID clientId, std::string_view reason) {
     if (!TFAR::getInstance().getCurrentlyInGame()) return;
 
@@ -186,12 +191,15 @@ void setGameClientMuteStatus(TSServerID serverConnectionHandlerID, TSClientID cl
 
         if (clientData && myData && (TFAR::getInstance().m_gameData.alive && clientData->isAlive() || myData->isSpectating)) {
             auto distance = myData->getClientPosition().distanceTo(clientData->getClientPosition());
-            mute = distance > (clientData->voiceVolume + 15);
+            const auto voiceVolume = effectiveVoiceVolume(*clientData);
+            mute = distance > (voiceVolume + 15);
             decision << " alive=" << boolString(TFAR::getInstance().m_gameData.alive)
                 << " clientAlive=" << boolString(clientData->isAlive())
                 << " mySpectating=" << boolString(myData->isSpectating)
                 << " distance=" << distance
-                << " voiceLimit=" << (clientData->voiceVolume + 15)
+                << " voiceVolume=" << clientData->voiceVolume
+                << " effectiveVoiceVolume=" << voiceVolume
+                << " voiceLimit=" << (voiceVolume + 15)
                 << " initialDistanceMute=" << boolString(mute);
             
             if (mute) {//If he is in range we don't need to check if we can hear him over radio as we can hear anyway.
@@ -677,18 +685,19 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
     const auto vehicleVolumeLoss = std::clamp(myVehicleDescriptor.vehicleIsolation + hisVehicleDesriptor.vehicleIsolation, 0.0f, 0.99f);
     const bool isInSameVehicle = myVehicleDescriptor.vehicleName == hisVehicleDesriptor.vehicleName && myVehicleDescriptor.vehicleName != "no";
     const auto distanceFromClient = myPosition.distanceTo(clientData->getClientPosition()) + 2 * clientData->objectInterception; //2m more dist for each obstacle
+    const auto voiceVolume = effectiveVoiceVolume(*clientData);
 
     //#### DIRECT SPEECH
     if (myId != clientID &&
         !isSpectator && !isNotHearableInNonPureSpectator && //We don't hear spectators and enemy units(if enabled in config)....
-        distanceFromClient <= (clientData->voiceVolume + 15)
+        distanceFromClient <= (voiceVolume + 15)
         ) {
         //Direct Speech
         ProfileScopeN("direct speech");
 
         if (shouldPlayerHear) {
             if (vehicleVolumeLoss < 0.01 || isInSameVehicle) {
-                const auto attenuation = helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume);
+                const auto attenuation = helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, voiceVolume);
                 if (attenuation < 0.15f)
                     LOG3DMUTE("TFAR SemiMute atten s1 <0.15");
                 if (!isInSameVehicle && clientData->objectInterception > 0) {
@@ -703,11 +712,11 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
                     sampleBuffer.applyGain(attenuation);
                 }
             } else {
-                helpers::processFilterStereo(sampleBuffer, helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume, 1.0f - vehicleVolumeLoss) * pow(1.0f - vehicleVolumeLoss, 1.2f), clientData->effects.getFilterVehicle("local_vehicle", vehicleVolumeLoss));
+                helpers::processFilterStereo(sampleBuffer, helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, voiceVolume, 1.0f - vehicleVolumeLoss) * pow(1.0f - vehicleVolumeLoss, 1.2f), clientData->effects.getFilterVehicle("local_vehicle", vehicleVolumeLoss));
             }
         } else {
             LOG3DMUTE("TFAR SemiMute shouldn't hear");
-            helpers::processFilterStereo(sampleBuffer, helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume) * CANT_SPEAK_GAIN, clientData->effects.getFilterCantSpeak("local_cantspeak"));
+            helpers::processFilterStereo(sampleBuffer, helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, voiceVolume) * CANT_SPEAK_GAIN, clientData->effects.getFilterCantSpeak("local_cantspeak"));
         }
 
 
@@ -717,7 +726,7 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
         //Time differential based on direction
         clientData->effects.getClunk("voice_clunk")->process(sampleBuffer, relativePosition, myViewDirection);//interaural time difference
         //Volume differential based on direction
-        helpers::applyILD(sampleBuffer, myPosition, myViewDirection, clientData->getClientPosition(), clientData->getViewDirection(), shouldPlayerHear, clientData->voiceVolume);
+        helpers::applyILD(sampleBuffer, myPosition, myViewDirection, clientData->getClientPosition(), clientData->getViewDirection(), shouldPlayerHear, voiceVolume);
 
         //helpers::applyILD(samples, sampleCount, channels, relativePosition, myViewDirection);//interaural level difference
 
@@ -732,7 +741,8 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
         message += " isSpectator=" + std::to_string(isSpectator);
         message += " isNotHearableInNonPureSpectator=" + std::to_string(isNotHearableInNonPureSpectator);
         message += " distanceFromClient_=" + std::to_string(distanceFromClient);
-        message += " <= voiceVolume=" + std::to_string(clientData->voiceVolume + 15);
+        message += " <= voiceVolume=" + std::to_string(voiceVolume + 15);
+        message += " rawVoiceVolume=" + std::to_string(clientData->voiceVolume);
 
         LOG3DMUTE(message);
         memset(samples, 0, channels * sampleCount * sizeof(short));
