@@ -729,7 +729,9 @@
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="pipe_handler.cpp" />
     <ClCompile Include="PlaybackHandler.cpp" />
-    <ClCompile Include="platform\Platform.cpp" />
+    <ClCompile Include="platform\Platform.cpp">
+      <ObjectFileName>$(IntDir)tfar_platform.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="plugin.cpp" />
     <ClCompile Include="profilers.cpp" />
     <ClCompile Include="ProfilerTracy.cpp" />

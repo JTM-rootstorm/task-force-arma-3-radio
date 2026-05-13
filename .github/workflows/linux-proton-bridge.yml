@@ -24,6 +24,41 @@ jobs:
           name: TFAR_win64_linux_amd64
           path: build/tfar-linux/TFAR_win64_linux_amd64.so
 
+  windows-teamspeak-plugin:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Fetch Windows TeamSpeak plugin dependencies
+        shell: pwsh
+        run: |
+          git config submodule.ts/include/freetype.url https://github.com/freetype/freetype.git
+          git submodule update --init ts/include/freetype ts/include/glfw ts/include/glm
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build Windows TeamSpeak plugin
+        env:
+          AppVeyor: isCI=1
+        run: >
+          msbuild ts/src/task_force_radio_plugin.sln
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:PlatformToolset=v143
+          /p:WindowsTargetPlatformVersion=10.0
+      - name: Locate Windows TeamSpeak plugin
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path ts/src -Recurse -Filter TFAR_win64.dll | Select-Object -First 1
+          if (-not $plugin) {
+            throw "TFAR_win64.dll was not produced"
+          }
+          Write-Host "Found $($plugin.FullName) ($($plugin.Length) bytes)"
+      - name: Upload Windows TeamSpeak plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TFAR_win64_windows_logging
+          path: ts/src/**/TFAR_win64.dll
+
   windows-proton-bridge-dll:
     runs-on: windows-latest
     steps:
