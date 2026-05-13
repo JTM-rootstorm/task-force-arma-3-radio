@@ -747,7 +747,7 @@ void Teamspeak::setMyClient3DPosition(TSServerID serverConnectionHandlerID, Posi
 }
 
 void Teamspeak::setClient3DPosition(TSServerID serverConnectionHandlerID, TSClientID clientId, Position3D pos) {
-    if (DWORD error = ts3Functions.channelset3DAttributes(serverConnectionHandlerID.baseType(), clientId.baseType(), Position3D()); error != ERROR_ok) {
+    if (DWORD error = ts3Functions.channelset3DAttributes(serverConnectionHandlerID.baseType(), clientId.baseType(), pos); error != ERROR_ok) {
         //We don't really care.. so don't spam our users
         //if (error != ERROR_client_invalid_id) //can happen if client disconnected while playing
         //log("can't center client", error);

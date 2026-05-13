@@ -688,20 +688,19 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
 
         if (shouldPlayerHear) {
             if (vehicleVolumeLoss < 0.01 || isInSameVehicle) {
-
-                //auto atten = helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume);
-                //if (atten < 0.15)
-                //    LOG3DMUTE("TFAR SemiMute atten s1 <0.15");
-                //helpers::applyGain(samples, sampleCount, channels, atten);
+                const auto attenuation = helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume);
+                if (attenuation < 0.15f)
+                    LOG3DMUTE("TFAR SemiMute atten s1 <0.15");
                 if (!isInSameVehicle && clientData->objectInterception > 0) {
                     auto filter = clientData->effects.getFilterObjectInterception(clientData->objectInterception);
                     if (clientData->OISampleBuffer.getSampleCount() != 0) {
                         helpers::processFilterStereo(clientData->OISampleBuffer, 1.0f, filter, false); //pre-seed the filter with last sample
                     }
                     sampleBuffer.copy(clientData->OISampleBuffer);
-                    helpers::processFilterStereo(sampleBuffer, 1.0f, filter); //getFilterObjectInterception
+                    helpers::processFilterStereo(sampleBuffer, attenuation, filter); //getFilterObjectInterception
                 } else {
                     sampleBuffer.copy(clientData->OISampleBuffer);
+                    sampleBuffer.applyGain(attenuation);
                 }
             } else {
                 helpers::processFilterStereo(sampleBuffer, helpers::volumeAttenuation(distanceFromClient, shouldPlayerHear, clientData->voiceVolume, 1.0f - vehicleVolumeLoss) * pow(1.0f - vehicleVolumeLoss, 1.2f), clientData->effects.getFilterVehicle("local_vehicle", vehicleVolumeLoss));
