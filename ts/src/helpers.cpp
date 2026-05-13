@@ -17,13 +17,19 @@
 
 //static_assert(static_cast<AngleRadians>(190.0_deg) > 3.f, "");
 void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadians viewAngle) {
-    auto sampleCount = samples.getSampleCount();
-    auto channels = samples.getChannels();
     if (samples.getChannels() == 2) {
-        AngleRadians dir = direction.toPolarAngle() + viewAngle;
-        float gainFrontLeft = AngleDegrees(-21.5f).toRadians() * dir.cosine() + 0.625f;
-        float gainFrontRight = AngleDegrees(21.5f).toRadians() * dir.cosine() + 0.625f;
-        //Use https://msdn.microsoft.com/en-us/library/windows/desktop/ee415798(v=vs.85).aspx for more than 2 channels
+        constexpr float kMinFarEarGain = 0.25f;
+        constexpr float kPi = static_cast<float>(M_PI);
+        constexpr float kTwoPi = kPi * 2.0f;
+
+        auto relativeAngle = static_cast<float>(direction.toAngle() - viewAngle);
+        while (relativeAngle > kPi) relativeAngle -= kTwoPi;
+        while (relativeAngle < -kPi) relativeAngle += kTwoPi;
+
+        const auto side = std::clamp(std::sin(relativeAngle), -1.0f, 1.0f);
+        const auto farEarAttenuation = 1.0f - kMinFarEarGain;
+        const auto gainFrontLeft = side > 0.0f ? 1.0f - (side * farEarAttenuation) : 1.0f;
+        const auto gainFrontRight = side < 0.0f ? 1.0f + (side * farEarAttenuation) : 1.0f;
 
         samples.applyStereoGain(gainFrontLeft, gainFrontRight);
     }
@@ -172,7 +178,7 @@ drawLine3D [ASLToAGL eyePos player2, ASLToAGL (eyePos player2) vectorAdd (upVec 
     (void)emitterViewDirection;
     (void)shouldPlayerHear;
     (void)emitterVoiceVolume;
-    applyILD(samples, myPosition.directionTo(emitterPosition), myViewDirection.toPolarAngle());
+    applyILD(samples, myPosition.directionTo(emitterPosition), myViewDirection.toAngle());
 #endif
 }
 
