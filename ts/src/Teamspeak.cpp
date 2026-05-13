@@ -471,6 +471,9 @@ void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::str
 #ifndef _WIN32
     if (targetMode == PluginCommandTarget_CURRENT_CHANNEL && targets.empty()) {
         sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, targetMode, {});
+        Logger::log(LoggerTypes::pluginCommands,
+            "sendPluginCommand linux-server-fallback command=" + std::string(command));
+        sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, PluginCommandTarget_SERVER, {});
         const auto myId = getMyId(serverConnectionHandlerID);
         const auto myChannel = getChannelOfClient(serverConnectionHandlerID, myId);
         auto channelTargets = getChannelClients(serverConnectionHandlerID, myChannel);

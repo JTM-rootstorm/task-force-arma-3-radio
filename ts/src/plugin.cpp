@@ -126,6 +126,10 @@ void requestRemoteVolumeStatusIfDue(TSServerID serverId, TSClientID clientId, st
         " reason=" + std::string(reason) +
         " command=" + command);
     Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_CLIENT, { clientId });
+    Logger::log(LoggerTypes::pluginCommands,
+        "requestRemoteVolumeStatus server-fallback client=" + std::to_string(clientId.baseType()) +
+        " command=" + command);
+    Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_SERVER);
 }
 
 void broadcastOwnVoiceVolumeStatus(TSServerID serverId, bool talking) {
