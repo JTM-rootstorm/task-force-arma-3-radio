@@ -4,7 +4,7 @@
 #define PLUGIN_VERSION AppVeyorBuild
 #define isCI 1
 #else
-#define PLUGIN_VERSION "1.0.0.1"
+#define PLUGIN_VERSION "1.-1.0.341"
 #endif
 
 #ifdef TFAR_LINUX_PLUGIN

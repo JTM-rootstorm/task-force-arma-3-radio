@@ -470,6 +470,7 @@ void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::str
 
 #ifndef _WIN32
     if (targetMode == PluginCommandTarget_CURRENT_CHANNEL && targets.empty()) {
+        sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, targetMode, {});
         const auto myId = getMyId(serverConnectionHandlerID);
         const auto myChannel = getChannelOfClient(serverConnectionHandlerID, myId);
         auto channelTargets = getChannelClients(serverConnectionHandlerID, myChannel);
@@ -480,8 +481,8 @@ void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::str
             " command=" + std::string(command));
         if (!channelTargets.empty()) {
             sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, PluginCommandTarget_CLIENT, std::move(channelTargets));
-            return;
         }
+        return;
     }
 #endif
 
