@@ -9,7 +9,6 @@
 #include <ctime> // localtime
 #include <iomanip> // put_time
 #include <filesystem>
-#include "common.hpp"
 using namespace dataType;
 struct TS3Functions ts3Functions;
 
@@ -465,19 +464,6 @@ void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::str
         targets.emplace_back(0);
         ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, reinterpret_cast<anyID*>(targets.data()), nullptr);
     }
-#ifndef _WIN32
-    if (pluginID != PLUGIN_NAME_x64) {
-        Logger::log(LoggerTypes::pluginCommands,
-            "sendPluginCommand compat id=" + std::string(PLUGIN_NAME_x64) +
-            " target=" + pluginTargetModeName(targetMode) +
-            " targets=" + std::to_string(targets.empty() ? 0 : targets.size() - 1) +
-            " command=" + std::string(command));
-        if (targets.empty())
-            ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), PLUGIN_NAME_x64, command.data(), targetMode, nullptr, nullptr);
-        else
-            ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), PLUGIN_NAME_x64, command.data(), targetMode, reinterpret_cast<anyID*>(targets.data()), nullptr);
-    }
-#endif
 }
 
 void Teamspeak::playWavFile(const std::string& filePath) {

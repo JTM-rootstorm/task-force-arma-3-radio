@@ -2,8 +2,8 @@
 
 ## TeamSpeak Does Not Show the Plugin
 
-- Confirm `TFAR_win64_x64.so` is in the TeamSpeak plugin directory.
-- Confirm stale `TFAR_linux_x64.so` copies are removed or disabled; that filename uses a separate TeamSpeak command namespace and cannot exchange VOLUME/TANGENT commands with Windows clients.
+- Confirm `TFAR_win64_linux_amd64.so` is in the TeamSpeak plugin directory.
+- Confirm stale `TFAR_linux_x64.so` and `TFAR_win64_x64.so` copies are removed or disabled. `TFAR_linux_x64.so` uses a separate TeamSpeak command namespace, and `TFAR_win64_x64.so` can register as a GUID namespace on Linux; either case prevents stock Windows TFAR from accepting VOLUME/TANGENT commands.
 - Confirm the file is readable and executable.
 - Check TeamSpeak client logs for plugin API mismatch.
 - Confirm the build architecture is x86_64.

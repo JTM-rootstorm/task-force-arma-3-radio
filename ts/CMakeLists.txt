@@ -115,9 +115,9 @@ if(TFAR_LINUX_PLUGIN)
     set_target_properties(TFAR_linux_x64 PROPERTIES
         PREFIX ""
         # TeamSpeak derives the plugin-command namespace from the plugin file
-        # name. Use the Windows x64 TFAR namespace so Linux clients exchange
-        # VOLUME/TANGENT commands with the existing Windows plugin.
-        OUTPUT_NAME "TFAR_win64_x64"
+        # name after removing the Linux platform suffix. Keep the Windows TFAR
+        # base name so stock Windows clients accept VOLUME/TANGENT traffic.
+        OUTPUT_NAME "TFAR_win64_linux_amd64"
         SUFFIX ".so"
     )
     if(TFAR_BRIDGE_PROTOCOL_TESTS)
