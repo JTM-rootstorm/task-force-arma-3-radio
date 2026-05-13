@@ -16,7 +16,7 @@ backup_copy() {
 }
 
 if [[ -z "$TS3_PLUGIN_DIR" ]]; then
-    for candidate in "$HOME/.ts3client/plugins" "$HOME/.local/share/TeamSpeak 3/plugins"; do
+    for candidate in "$HOME/.var/app/com.teamspeak.TeamSpeak3/.ts3client/plugins" "$HOME/.ts3client/plugins" "$HOME/.local/share/TeamSpeak 3/plugins"; do
         if [[ -d "$candidate" ]]; then
             TS3_PLUGIN_DIR="$candidate"
             break
@@ -33,7 +33,10 @@ echo "Installing TeamSpeak plugin to: $TS3_PLUGIN_DIR"
 if [[ -e "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" ]]; then
     mv "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" "$TS3_PLUGIN_DIR/TFAR_linux_x64.so.disabled.$(date +%Y%m%d%H%M%S)"
 fi
-backup_copy "$ROOT_DIR/plugins/linux/TFAR_win64_x64.so" "$TS3_PLUGIN_DIR/TFAR_win64_x64.so"
+if [[ -e "$TS3_PLUGIN_DIR/TFAR_win64_x64.so" ]]; then
+    mv "$TS3_PLUGIN_DIR/TFAR_win64_x64.so" "$TS3_PLUGIN_DIR/TFAR_win64_x64.so.disabled.$(date +%Y%m%d%H%M%S)"
+fi
+backup_copy "$ROOT_DIR/plugins/linux/TFAR_win64_linux_amd64.so" "$TS3_PLUGIN_DIR/TFAR_win64_linux_amd64.so"
 
 if [[ -n "$ARMA_MOD_DIR" ]]; then
     echo "Installing Proton bridge DLL under: $ARMA_MOD_DIR"

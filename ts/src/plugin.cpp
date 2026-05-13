@@ -104,6 +104,30 @@ std::string boolString(bool value) {
     return value ? "true" : "false";
 }
 
+void requestRemoteVolumeStatusIfDue(TSServerID serverId, TSClientID clientId, std::string_view reason) {
+    if (!TFAR::getInstance().getCurrentlyInGame()) return;
+
+    const auto myId = Teamspeak::getMyId(serverId);
+    if (!myId || clientId == myId) return;
+
+    static std::map<std::string, std::chrono::system_clock::time_point> lastVolumeRequest;
+    const auto key = std::to_string(serverId.baseType()) + ":" + std::to_string(clientId.baseType());
+    const auto now = std::chrono::system_clock::now();
+    const auto found = lastVolumeRequest.find(key);
+    if (found != lastVolumeRequest.end() && now - found->second < 30s) {
+        return;
+    }
+    lastVolumeRequest[key] = now;
+
+    const auto command = "REQVOL\t" + std::to_string(myId.baseType());
+    Logger::log(LoggerTypes::pluginCommands,
+        "requestRemoteVolumeStatus client=" + std::to_string(clientId.baseType()) +
+        " nick=" + Teamspeak::getClientNickname(serverId, clientId) +
+        " reason=" + std::string(reason) +
+        " command=" + command);
+    Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_CLIENT, { clientId });
+}
+
 void broadcastOwnVoiceVolumeStatus(TSServerID serverId, bool talking) {
     if (!TFAR::getInstance().getCurrentlyInGame()) return;
 
@@ -546,6 +570,9 @@ bool isPluginEnabledForUser(TSServerID serverConnectionHandlerID, TSClientID cli
         message += " metadataPrefix=" + clientInfo.substr(0, 80);
     }
     logPluginEnabledIfChanged(serverConnectionHandlerID, clientID, message);
+    if (result) {
+        requestRemoteVolumeStatusIfDue(serverConnectionHandlerID, clientID, source);
+    }
 
     return result;
 }
@@ -1194,6 +1221,12 @@ void processPluginCommand(std::string_view command) {
 }
 
 void ts3plugin_onPluginCommandEventNew(uint64 serverConnectionHandlerID, const char* pluginName, const char* pluginCommand, anyID invokerClientID, const char* invokerName, const char* invokerUniqueIdentity) {
+    Logger::log(LoggerTypes::pluginCommands,
+        "pluginCommandEventNew invoker=" + std::to_string(invokerClientID) +
+        " name=" + std::string(invokerName ? invokerName : "<null>") +
+        " uid=" + std::string(invokerUniqueIdentity ? invokerUniqueIdentity : "<null>") +
+        " plugin=" + std::string(pluginName ? pluginName : "<null>") +
+        " command=" + std::string(pluginCommand ? pluginCommand : "<null>"));
     ts3plugin_onPluginCommandEventOld(serverConnectionHandlerID, pluginName, pluginCommand);
 }
 

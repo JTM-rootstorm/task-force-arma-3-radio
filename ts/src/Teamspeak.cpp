@@ -30,6 +30,15 @@ std::string pluginTargetModeName(PluginTargetMode targetMode) {
     return "unknown";
 }
 
+void sendPluginCommandRaw(TSServerID serverConnectionHandlerID, std::string_view pluginID, std::string_view command, PluginTargetMode targetMode, std::vector<TSClientID> targets) {
+    if (targets.empty()) {
+        ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, nullptr, nullptr);
+    } else {
+        targets.emplace_back(0);
+        ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, reinterpret_cast<anyID*>(targets.data()), nullptr);
+    }
+}
+
 } // namespace
 
 std::vector<dataType::TSClientID> TeamspeakServerData::getMutedClients() {
@@ -458,12 +467,25 @@ void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::str
         " target=" + pluginTargetModeName(targetMode) +
         " targets=" + std::to_string(targets.size()) +
         " command=" + std::string(command));
-    if (targets.empty())
-        ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, nullptr, nullptr);
-    else {
-        targets.emplace_back(0);
-        ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, reinterpret_cast<anyID*>(targets.data()), nullptr);
+
+#ifndef _WIN32
+    if (targetMode == PluginCommandTarget_CURRENT_CHANNEL && targets.empty()) {
+        const auto myId = getMyId(serverConnectionHandlerID);
+        const auto myChannel = getChannelOfClient(serverConnectionHandlerID, myId);
+        auto channelTargets = getChannelClients(serverConnectionHandlerID, myChannel);
+        channelTargets.erase(std::remove(channelTargets.begin(), channelTargets.end(), myId), channelTargets.end());
+        Logger::log(LoggerTypes::pluginCommands,
+            "sendPluginCommand linux-direct-fanout channel=" + std::to_string(myChannel.baseType()) +
+            " targets=" + std::to_string(channelTargets.size()) +
+            " command=" + std::string(command));
+        if (!channelTargets.empty()) {
+            sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, PluginCommandTarget_CLIENT, std::move(channelTargets));
+            return;
+        }
     }
+#endif
+
+    sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, targetMode, std::move(targets));
 }
 
 void Teamspeak::playWavFile(const std::string& filePath) {
