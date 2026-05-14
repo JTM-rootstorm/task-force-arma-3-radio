@@ -136,12 +136,6 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
     LockGuard_exclusive lock(playbackCriticalSection);
     bool fill = false;
     std::vector<std::string> to_remove;
-    static int lastMixedPlaybackChannels = -1;
-    if (lastMixedPlaybackChannels != channels) {
-        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE mixedPlayback channels=" + std::to_string(channels) +
-            " sampleCount=" + std::to_string(sampleCount));
-        lastMixedPlaybackChannels = channels;
-    }
     const auto filledMask = channelFillMask ? *channelFillMask : 0u;
     const auto requiredMask = channels == 1 ? kMonoSpeakerMask : kFrontStereoMask;
     if ((filledMask & kKnownPlaybackMask) == 0) {

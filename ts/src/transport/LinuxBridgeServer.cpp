@@ -153,8 +153,7 @@ bool LinuxBridgeServer::sendResponse(std::uint32_t sequence, const std::string& 
     return sendFrame(clientSocket_, bridge::Type::Response, sequence, response);
 }
 
-void LinuxBridgeServer::setConfigNeedsRefresh(bool needsRefresh) {
-    configNeedsRefresh_.store(needsRefresh);
+void LinuxBridgeServer::setConfigNeedsRefresh(bool) {
 }
 
 void LinuxBridgeServer::run() {

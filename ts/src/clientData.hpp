@@ -14,9 +14,24 @@
 class StereoGainSmoother {
 public:
     void apply(SampleBuffer& samples, helpers::StereoGains target) {
+        const auto isUnity = [](helpers::StereoGains gains) {
+            return gains.left == 1.0f && gains.right == 1.0f;
+        };
+        const auto sameGains = [](helpers::StereoGains left, helpers::StereoGains right) {
+            return left.left == right.left && left.right == right.right;
+        };
+
         if (!initialized) {
             last = target;
             initialized = true;
+            if (isUnity(target)) return;
+            samples.applyStereoGain(target.left, target.right);
+            return;
+        }
+        if (sameGains(last, target)) {
+            if (isUnity(target)) return;
+            samples.applyStereoGain(target.left, target.right);
+            return;
         }
         samples.applyStereoGainRamp(last.left, last.right, target.left, target.right);
         last = target;

@@ -15,22 +15,6 @@ struct TS3Functions ts3Functions;
 
 namespace {
 
-std::string pluginTargetModeName(PluginTargetMode targetMode) {
-    switch (targetMode) {
-        case PluginCommandTarget_CURRENT_CHANNEL:
-            return "current_channel";
-        case PluginCommandTarget_SERVER:
-            return "server";
-        case PluginCommandTarget_CLIENT:
-            return "client";
-        case PluginCommandTarget_CURRENT_CHANNEL_SUBSCRIBED_CLIENTS:
-            return "current_channel_subscribed_clients";
-        case PluginCommandTarget_MAX:
-            return "max";
-    }
-    return "unknown";
-}
-
 void sendPluginCommandRaw(TSServerID serverConnectionHandlerID, std::string_view pluginID, std::string_view command, PluginTargetMode targetMode, std::vector<TSClientID> targets) {
     if (targets.empty()) {
         ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, nullptr, nullptr);
@@ -41,28 +25,6 @@ void sendPluginCommandRaw(TSServerID serverConnectionHandlerID, std::string_view
 }
 
 #ifndef _WIN32
-std::string takeTsString(char* value) {
-    std::string result = value ? value : "";
-    if (value) {
-        ts3Functions.freeMemory(value);
-    }
-    return result;
-}
-
-void logCurrentPlaybackConfiguration(TSServerID serverConnectionHandlerID) {
-    char* mode = nullptr;
-    char* deviceName = nullptr;
-    int isDefault = 0;
-
-    const auto modeError = ts3Functions.getCurrentPlayBackMode(serverConnectionHandlerID.baseType(), &mode);
-    const auto deviceError = ts3Functions.getCurrentPlaybackDeviceName(serverConnectionHandlerID.baseType(), &deviceName, &isDefault);
-
-    Logger::log(LoggerTypes::pluginCommands,
-        "TFAR_TRACE playback mode=" + (modeError == ERROR_ok ? takeTsString(mode) : "<error " + std::to_string(modeError) + ">") +
-        " device=" + (deviceError == ERROR_ok ? takeTsString(deviceName) : "<error " + std::to_string(deviceError) + ">") +
-        " default=" + std::to_string(isDefault));
-}
-
 std::string readSettingsValue(sqlite3* db, const char* table, const std::string& key) {
     sqlite3_stmt* statement = nullptr;
     const std::string sql = std::string("SELECT value FROM ") + table + " WHERE key=?1";
@@ -114,19 +76,15 @@ std::string setProfileLine(std::string profile, const std::string& key, const st
 }
 
 void configureLinuxPlaybackFor3D(TSServerID serverConnectionHandlerID) {
-    logCurrentPlaybackConfiguration(serverConnectionHandlerID);
-
     char configPath[512];
     ts3Functions.getConfigPath(configPath, sizeof(configPath));
     if (configPath[0] == '\0') {
-        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings skipped empty config path");
         return;
     }
 
     const auto settingsPath = (std::filesystem::path(configPath) / "settings.db").string();
     sqlite3* db = nullptr;
     if (sqlite3_open(settingsPath.c_str(), &db) != SQLITE_OK) {
-        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings open failed path=" + settingsPath);
         if (db) sqlite3_close(db);
         return;
     }
@@ -139,7 +97,6 @@ void configureLinuxPlaybackFor3D(TSServerID serverConnectionHandlerID) {
     const auto profileKey = "Playback/" + profileName;
     const auto oldProfile = readSettingsValue(db, "Profiles", profileKey);
     if (oldProfile.empty()) {
-        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings missing profile=" + profileKey);
         writeSettingsValue(db, "Application", "3DSoundEnabled", "1");
         sqlite3_close(db);
         return;
@@ -149,14 +106,11 @@ void configureLinuxPlaybackFor3D(TSServerID serverConnectionHandlerID) {
     newProfile = setProfileLine(newProfile, "MonoSoundExpansion", "0");
     newProfile = setProfileLine(newProfile, "PlaybackMonoOverCenterSpeaker", "false");
 
-    const bool appOk = writeSettingsValue(db, "Application", "3DSoundEnabled", "1");
-    const bool profileOk = oldProfile == newProfile || writeSettingsValue(db, "Profiles", profileKey, newProfile);
+    writeSettingsValue(db, "Application", "3DSoundEnabled", "1");
+    if (oldProfile != newProfile) {
+        writeSettingsValue(db, "Profiles", profileKey, newProfile);
+    }
     sqlite3_close(db);
-
-    Logger::log(LoggerTypes::pluginCommands,
-        "TFAR_TRACE playback settings profile=" + profileKey +
-        " 3d=" + (appOk ? "ok" : "failed") +
-        " monoExpansion=" + (profileOk ? "0" : "failed"));
 }
 #endif
 
@@ -312,10 +266,6 @@ void Teamspeak::setClientMute(TSServerID serverConnectionHandlerID, TSClientID c
     auto isAlreadyMuted = serverDataDir.getClientMuteStatus(clientID);
     if (isAlreadyMuted == mute) return; //Client already in state
 
-    Logger::log(LoggerTypes::pluginCommands,
-        "setClientMute client=" + std::to_string(clientID.baseType()) +
-        " nick=" + getClientNickname(serverConnectionHandlerID, clientID) +
-        " mute=" + (mute ? "true" : "false"));
     serverDataDir.setClientMuteStatus(clientID, mute);
 
     DWORD error;
@@ -586,26 +536,14 @@ void Teamspeak::_updateChanneNameCache(TSServerID serverConnectionHandlerID) {
 }
 
 void Teamspeak::sendPluginCommand(TSServerID serverConnectionHandlerID, std::string_view pluginID, std::string_view command, PluginTargetMode targetMode, std::vector<TSClientID> targets) {
-    Logger::log(LoggerTypes::pluginCommands,
-        "sendPluginCommand id=" + std::string(pluginID) +
-        " target=" + pluginTargetModeName(targetMode) +
-        " targets=" + std::to_string(targets.size()) +
-        " command=" + std::string(command));
-
 #ifndef _WIN32
     if (targetMode == PluginCommandTarget_CURRENT_CHANNEL && targets.empty()) {
         sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, targetMode, {});
-        Logger::log(LoggerTypes::pluginCommands,
-            "sendPluginCommand linux-server-fallback command=" + std::string(command));
         sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, PluginCommandTarget_SERVER, {});
         const auto myId = getMyId(serverConnectionHandlerID);
         const auto myChannel = getChannelOfClient(serverConnectionHandlerID, myId);
         auto channelTargets = getChannelClients(serverConnectionHandlerID, myChannel);
         channelTargets.erase(std::remove(channelTargets.begin(), channelTargets.end(), myId), channelTargets.end());
-        Logger::log(LoggerTypes::pluginCommands,
-            "sendPluginCommand linux-direct-fanout channel=" + std::to_string(myChannel.baseType()) +
-            " targets=" + std::to_string(channelTargets.size()) +
-            " command=" + std::string(command));
         if (!channelTargets.empty()) {
             sendPluginCommandRaw(serverConnectionHandlerID, pluginID, command, PluginCommandTarget_CLIENT, std::move(channelTargets));
         }
@@ -625,7 +563,6 @@ void Teamspeak::playWavFile(const std::string& filePath) {
 
 void Teamspeak::setVoiceDisabled(TSServerID serverConnectionHandlerID, bool disabled) {
     DWORD error;
-    Logger::log(LoggerTypes::pluginCommands, std::string("setVoiceDisabled disabled=") + (disabled ? "true" : "false"));
     //When CLIENT_INPUT_DEACTIVATED == INPUT_ACTIVE We are sending audio...
     if ((error = ts3Functions.setClientSelfVariableAsInt(serverConnectionHandlerID.baseType(), CLIENT_INPUT_DEACTIVATED, disabled ? INPUT_DEACTIVATED : INPUT_ACTIVE)) != ERROR_ok) {
         log("Can't active talking by tangent", error);

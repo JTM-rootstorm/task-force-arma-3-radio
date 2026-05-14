@@ -48,7 +48,6 @@ private:
     std::thread worker_;
     std::atomic_bool running_{ false };
     std::atomic_bool connected_{ false };
-    std::atomic_bool configNeedsRefresh_{ false };
     mutable std::mutex socketMutex_;
     int listenSocket_ = -1;
     int clientSocket_ = -1;
