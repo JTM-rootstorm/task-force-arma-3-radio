@@ -11,6 +11,27 @@
 #include "antennaManager.h"
 #include <set>
 
+class StereoGainSmoother {
+public:
+    void apply(SampleBuffer& samples, helpers::StereoGains target) {
+        if (!initialized) {
+            last = target;
+            initialized = true;
+        }
+        samples.applyStereoGainRamp(last.left, last.right, target.left, target.right);
+        last = target;
+    }
+
+    void reset() {
+        initialized = false;
+        last = {};
+    }
+
+private:
+    bool initialized{ false };
+    helpers::StereoGains last{};
+};
+
 enum class sendingRadioType {   //Receiving FROM senders Radio.
     LISTEN_TO_SW,
     LISTEN_TO_LR,
@@ -168,6 +189,21 @@ public:
         clunks.erase(key);
     }
 
+    StereoGainSmoother* getStereoGainSmoother(const std::string& key) {
+        LockGuard_shared lock_shared(m_lock);
+        if (!stereoGainSmoothers.count(key)) {
+            lock_shared.unlock();
+            LockGuard_exclusive lock_exclusive(m_lock);
+            stereoGainSmoothers[key] = std::make_unique<StereoGainSmoother>();
+        }
+        return stereoGainSmoothers[key].get();
+    }
+
+    void removeStereoGainSmoother(const std::string& key) {
+        LockGuard_exclusive lock(m_lock);
+        stereoGainSmoothers.erase(key);
+    }
+
     Dsp::SimpleFilter<Dsp::Butterworth::LowPass<4>, MAX_CHANNELS>* getFilterCantSpeak(const std::string& key) {
         LockGuard_shared lock_shared(m_lock);
         if (!filtersCantSpeak.count(key)) {
@@ -219,6 +255,7 @@ public:
     void resetVoices() {
         LockGuard_exclusive lock(m_lock);
         //clunks.clear();
+        stereoGainSmoothers.clear();
         filtersCantSpeak.clear();
         filtersVehicle.clear();
     }
@@ -234,6 +271,7 @@ private:
     effectMap<AirborneRadioEffect> airborneEffects;
     effectMap<UnderWaterRadioEffect> ddEffects;
     effectMap<Clunk> clunks;
+    effectMap<StereoGainSmoother> stereoGainSmoothers;
 
     effectMap<Dsp::SimpleFilter<Dsp::Butterworth::LowPass<4>, MAX_CHANNELS>> filtersCantSpeak;
     effectMap<Dsp::SimpleFilter<Dsp::Butterworth::LowPass<2>, MAX_CHANNELS>> filtersVehicle;
@@ -370,4 +408,3 @@ private:
             velocity = { 0,0,0 };
     }
 };
-

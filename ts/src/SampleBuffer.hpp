@@ -165,6 +165,7 @@ public:
     }
 
     void applyStereoGain(float gainFrontLeft, float gainFrontRight);
+    void applyStereoGainRamp(float startGainFrontLeft, float startGainFrontRight, float endGainFrontLeft, float endGainFrontRight);
     void applyMonoGain(float gain);
     ///Has checks for 0/1 gain to not actually do processing
     void applyGain(float gain) {

@@ -16,24 +16,28 @@
 #endif
 
 //static_assert(static_cast<AngleRadians>(190.0_deg) > 3.f, "");
+helpers::StereoGains helpers::calculateILDGains(Direction3D direction, AngleRadians viewAngle) {
+    constexpr float kMinFarEarGain = 0.25f;
+    constexpr float kPi = static_cast<float>(M_PI);
+    constexpr float kTwoPi = kPi * 2.0f;
+
+    auto relativeAngle = static_cast<float>(direction.toAngle() - viewAngle);
+    while (relativeAngle > kPi) relativeAngle -= kTwoPi;
+    while (relativeAngle < -kPi) relativeAngle += kTwoPi;
+
+    const auto side = std::clamp(std::sin(relativeAngle), -1.0f, 1.0f);
+    const auto farEarAttenuation = 1.0f - kMinFarEarGain;
+
+    return StereoGains{
+        side > 0.0f ? 1.0f - (side * farEarAttenuation) : 1.0f,
+        side < 0.0f ? 1.0f + (side * farEarAttenuation) : 1.0f
+    };
+}
+
 void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadians viewAngle) {
     if (samples.getChannels() == 2) {
-        constexpr float kMinFarEarGain = 0.35f;
-        constexpr float kMaxNearEarGain = 1.35f;
-        constexpr float kPi = static_cast<float>(M_PI);
-        constexpr float kTwoPi = kPi * 2.0f;
-
-        auto relativeAngle = static_cast<float>(direction.toAngle() - viewAngle);
-        while (relativeAngle > kPi) relativeAngle -= kTwoPi;
-        while (relativeAngle < -kPi) relativeAngle += kTwoPi;
-
-        const auto side = std::clamp(std::sin(relativeAngle), -1.0f, 1.0f);
-        const auto farEarAttenuation = 1.0f - kMinFarEarGain;
-        const auto nearEarBoost = kMaxNearEarGain - 1.0f;
-        const auto gainFrontLeft = side > 0.0f ? 1.0f - (side * farEarAttenuation) : 1.0f - (side * nearEarBoost);
-        const auto gainFrontRight = side < 0.0f ? 1.0f + (side * farEarAttenuation) : 1.0f + (side * nearEarBoost);
-
-        samples.applyStereoGain(gainFrontLeft, gainFrontRight);
+        const auto gains = calculateILDGains(direction, viewAngle);
+        samples.applyStereoGain(gains.left, gains.right);
     }
 }
 void helpers::applyILD(SampleBuffer& samples, Position3D myPosition, Direction3D myViewDirection, Position3D emitterPosition, Direction3D emitterViewDirection, bool shouldPlayerHear, int emitterVoiceVolume) {

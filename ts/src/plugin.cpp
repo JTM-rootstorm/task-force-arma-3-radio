@@ -742,7 +742,13 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
         //Time differential based on direction
         clientData->effects.getClunk("voice_clunk")->process(sampleBuffer, relativePosition, myViewDirection);//interaural time difference
         //Volume differential based on direction
+#ifdef _WIN32
         helpers::applyILD(sampleBuffer, myPosition, myViewDirection, clientData->getClientPosition(), clientData->getViewDirection(), shouldPlayerHear, voiceVolume);
+#else
+        clientData->effects.getStereoGainSmoother("voice_ild")->apply(
+            sampleBuffer,
+            helpers::calculateILDGains(relativePosition, myViewDirection.toAngle()));
+#endif
 
         //helpers::applyILD(samples, sampleCount, channels, relativePosition, myViewDirection);//interaural level difference
 
@@ -868,7 +874,13 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
             const auto myViewDirection = myData->getViewDirection();
 
             clientData->effects.getClunk(info.radio_id)->process(radio_buffer, relativePosition, myViewDirection);//interaural time difference
+#ifdef _WIN32
             helpers::applyILD(radio_buffer, relativePosition, myViewDirection);//interaural level difference
+#else
+            clientData->effects.getStereoGainSmoother("radio_ild_" + info.radio_id)->apply(
+                radio_buffer,
+                helpers::calculateILDGains(relativePosition, myViewDirection));
+#endif
 
         } else if (info.on == receivingRadioType::LISTED_ON_INTERCOM) {
             clientData->effects.getLrRadioEffect("intercom")->setErrorLeveL(0.f);

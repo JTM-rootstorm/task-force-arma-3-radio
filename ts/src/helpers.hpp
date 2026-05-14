@@ -92,6 +92,12 @@ constexpr float DegToRad(float deg) {
 
 class helpers {
 public:
+    struct StereoGains {
+        float left{ 1.0f };
+        float right{ 1.0f };
+    };
+
+    static StereoGains calculateILDGains(Direction3D direction, AngleRadians viewAngle);
     static void applyILD(SampleBuffer& samples, Direction3D direction, AngleRadians viewAngle); //interaural level difference
 
     static void applyILD(SampleBuffer& samples, Position3D myPosition, Direction3D myViewDirection, Position3D emitterPosition, Direction3D emitterViewDirection, bool shouldPlayerHear, int emitterVoiceVolume); //interaural level difference
