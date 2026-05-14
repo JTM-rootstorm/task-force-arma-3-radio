@@ -18,7 +18,8 @@
 //static_assert(static_cast<AngleRadians>(190.0_deg) > 3.f, "");
 void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadians viewAngle) {
     if (samples.getChannels() == 2) {
-        constexpr float kMinFarEarGain = 0.25f;
+        constexpr float kMinFarEarGain = 0.35f;
+        constexpr float kMaxNearEarGain = 1.35f;
         constexpr float kPi = static_cast<float>(M_PI);
         constexpr float kTwoPi = kPi * 2.0f;
 
@@ -28,8 +29,9 @@ void helpers::applyILD(SampleBuffer& samples, Direction3D direction, AngleRadian
 
         const auto side = std::clamp(std::sin(relativeAngle), -1.0f, 1.0f);
         const auto farEarAttenuation = 1.0f - kMinFarEarGain;
-        const auto gainFrontLeft = side > 0.0f ? 1.0f - (side * farEarAttenuation) : 1.0f;
-        const auto gainFrontRight = side < 0.0f ? 1.0f + (side * farEarAttenuation) : 1.0f;
+        const auto nearEarBoost = kMaxNearEarGain - 1.0f;
+        const auto gainFrontLeft = side > 0.0f ? 1.0f - (side * farEarAttenuation) : 1.0f - (side * nearEarBoost);
+        const auto gainFrontRight = side < 0.0f ? 1.0f + (side * farEarAttenuation) : 1.0f + (side * nearEarBoost);
 
         samples.applyStereoGain(gainFrontLeft, gainFrontRight);
     }

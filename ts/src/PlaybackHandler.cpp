@@ -22,7 +22,7 @@ namespace {
 #ifdef _WIN32
 constexpr std::uint32_t kTeamSpeakMixerSampleRate = 48000;
 #else
-constexpr std::uint32_t kTeamSpeakMixerSampleRate = 44100;
+constexpr std::uint32_t kTeamSpeakMixerSampleRate = 48000;
 #endif
 
 std::uint32_t getTeamSpeakMixerSampleRate() {
