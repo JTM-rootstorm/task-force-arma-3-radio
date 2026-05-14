@@ -6,6 +6,7 @@
 #include "Logger.hpp"
 #include "task_force_radio.hpp"
 #include "version.h"
+#include "sqlite3/sqlite3.h"
 #include <ctime> // localtime
 #include <iomanip> // put_time
 #include <filesystem>
@@ -38,6 +39,126 @@ void sendPluginCommandRaw(TSServerID serverConnectionHandlerID, std::string_view
         ts3Functions.sendPluginCommand(serverConnectionHandlerID.baseType(), pluginID.data(), command.data(), targetMode, reinterpret_cast<anyID*>(targets.data()), nullptr);
     }
 }
+
+#ifndef _WIN32
+std::string takeTsString(char* value) {
+    std::string result = value ? value : "";
+    if (value) {
+        ts3Functions.freeMemory(value);
+    }
+    return result;
+}
+
+void logCurrentPlaybackConfiguration(TSServerID serverConnectionHandlerID) {
+    char* mode = nullptr;
+    char* deviceName = nullptr;
+    int isDefault = 0;
+
+    const auto modeError = ts3Functions.getCurrentPlayBackMode(serverConnectionHandlerID.baseType(), &mode);
+    const auto deviceError = ts3Functions.getCurrentPlaybackDeviceName(serverConnectionHandlerID.baseType(), &deviceName, &isDefault);
+
+    Logger::log(LoggerTypes::pluginCommands,
+        "TFAR_TRACE playback mode=" + (modeError == ERROR_ok ? takeTsString(mode) : "<error " + std::to_string(modeError) + ">") +
+        " device=" + (deviceError == ERROR_ok ? takeTsString(deviceName) : "<error " + std::to_string(deviceError) + ">") +
+        " default=" + std::to_string(isDefault));
+}
+
+std::string readSettingsValue(sqlite3* db, const char* table, const std::string& key) {
+    sqlite3_stmt* statement = nullptr;
+    const std::string sql = std::string("SELECT value FROM ") + table + " WHERE key=?1";
+    std::string result;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+        return result;
+    }
+    sqlite3_bind_text(statement, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+        const auto* text = sqlite3_column_text(statement, 0);
+        if (text) result = reinterpret_cast<const char*>(text);
+    }
+    sqlite3_finalize(statement);
+    return result;
+}
+
+bool writeSettingsValue(sqlite3* db, const char* table, const std::string& key, const std::string& value) {
+    sqlite3_stmt* statement = nullptr;
+    const std::string sql = std::string("INSERT OR REPLACE INTO ") + table + " (timestamp,key,value) VALUES (?1,?2,?3)";
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    sqlite3_bind_int64(statement, 1, static_cast<sqlite3_int64>(std::time(nullptr)));
+    sqlite3_bind_text(statement, 2, key.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 3, value.c_str(), -1, SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE;
+    sqlite3_finalize(statement);
+    return ok;
+}
+
+std::string setProfileLine(std::string profile, const std::string& key, const std::string& value) {
+    const auto prefix = key + "=";
+    size_t pos = 0;
+    while (pos <= profile.size()) {
+        const auto lineEnd = profile.find('\n', pos);
+        const auto count = lineEnd == std::string::npos ? std::string::npos : lineEnd - pos;
+        if (profile.compare(pos, prefix.size(), prefix) == 0) {
+            profile.replace(pos, count, prefix + value);
+            return profile;
+        }
+        if (lineEnd == std::string::npos) break;
+        pos = lineEnd + 1;
+    }
+    if (!profile.empty() && profile.back() != '\n') {
+        profile.push_back('\n');
+    }
+    profile += prefix + value;
+    return profile;
+}
+
+void configureLinuxPlaybackFor3D(TSServerID serverConnectionHandlerID) {
+    logCurrentPlaybackConfiguration(serverConnectionHandlerID);
+
+    char configPath[512];
+    ts3Functions.getConfigPath(configPath, sizeof(configPath));
+    if (configPath[0] == '\0') {
+        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings skipped empty config path");
+        return;
+    }
+
+    const auto settingsPath = (std::filesystem::path(configPath) / "settings.db").string();
+    sqlite3* db = nullptr;
+    if (sqlite3_open(settingsPath.c_str(), &db) != SQLITE_OK) {
+        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings open failed path=" + settingsPath);
+        if (db) sqlite3_close(db);
+        return;
+    }
+    sqlite3_busy_timeout(db, 1000);
+
+    auto profileName = readSettingsValue(db, "Application", "DefaultPlaybackProfile");
+    if (profileName.empty()) {
+        profileName = "Default";
+    }
+    const auto profileKey = "Playback/" + profileName;
+    const auto oldProfile = readSettingsValue(db, "Profiles", profileKey);
+    if (oldProfile.empty()) {
+        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE playback settings missing profile=" + profileKey);
+        writeSettingsValue(db, "Application", "3DSoundEnabled", "1");
+        sqlite3_close(db);
+        return;
+    }
+
+    auto newProfile = oldProfile;
+    newProfile = setProfileLine(newProfile, "MonoSoundExpansion", "0");
+    newProfile = setProfileLine(newProfile, "PlaybackMonoOverCenterSpeaker", "false");
+
+    const bool appOk = writeSettingsValue(db, "Application", "3DSoundEnabled", "1");
+    const bool profileOk = oldProfile == newProfile || writeSettingsValue(db, "Profiles", profileKey, newProfile);
+    sqlite3_close(db);
+
+    Logger::log(LoggerTypes::pluginCommands,
+        "TFAR_TRACE playback settings profile=" + profileKey +
+        " 3d=" + (appOk ? "ok" : "failed") +
+        " monoExpansion=" + (profileOk ? "0" : "failed"));
+}
+#endif
 
 } // namespace
 
@@ -336,6 +457,9 @@ void Teamspeak::_onConnectStatusChangeEvent(TSServerID serverConnectionHandlerID
         if (errorCode != ERROR_ok) {
             log("Failed to set 3d settings", errorCode);
         }
+#ifndef _WIN32
+        configureLinuxPlaybackFor3D(serverConnectionHandlerID);
+#endif
         TFAR::getInstance().onTeamspeakServerConnect(serverConnectionHandlerID);
         _onChannelSwitchedEvent(serverConnectionHandlerID, getChannelOfClient(serverConnectionHandlerID));//Calls onClientJoined for every client in channel
 
