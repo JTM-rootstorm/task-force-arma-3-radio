@@ -19,6 +19,9 @@
 
 namespace {
 
+constexpr unsigned int kFrontStereoMask = 0x1u | 0x2u;
+constexpr unsigned int kMonoSpeakerMask = 0x40000000u;
+
 #ifdef _WIN32
 constexpr std::uint32_t kTeamSpeakMixerSampleRate = 48000;
 #else
@@ -132,7 +135,15 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
     LockGuard_exclusive lock(playbackCriticalSection);
     bool fill = false;
     std::vector<std::string> to_remove;
-    if (!(*channelFillMask & 3)) {
+    static int lastMixedPlaybackChannels = -1;
+    if (lastMixedPlaybackChannels != channels) {
+        log_string("TFAR mixed playback callback channels=" + std::to_string(channels) +
+            " sampleCount=" + std::to_string(sampleCount), LogLevel_DEBUG);
+        lastMixedPlaybackChannels = channels;
+    }
+    const auto filledMask = channelFillMask ? *channelFillMask : 0u;
+    const auto requiredMask = channels == 1 ? kMonoSpeakerMask : kFrontStereoMask;
+    if ((filledMask & requiredMask) == 0) {
         memset(samples, 0, sampleCount * channels * sizeof(short));
     }
     for (auto& [name,playback] : playbacks) {
@@ -142,6 +153,23 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
 
         int outputPosition = 0;
         int inputPosition = 0;
+        if (channels == 1) {
+            while (outputPosition < sampleCount && (static_cast<int>(playbackSampleCount) - inputPosition) >= 2) {
+                const auto left = static_cast<int>(playbackSamples[inputPosition]);
+                const auto right = static_cast<int>(playbackSamples[inputPosition + 1]);
+                const auto mixed = static_cast<short>((left + right) / 2);
+                samples[outputPosition] = std::clamp(samples[outputPosition] + mixed, SHRT_MIN, SHRT_MAX);
+                outputPosition++;
+                inputPosition += 2;
+                fill = true;
+            }
+            playback->cleanSamples(inputPosition);
+            if (playback->isDone()) {
+                to_remove.push_back(name);
+            }
+            continue;
+        }
+
         //mix stereo sound into multichannel sound
         while (outputPosition < sampleCount * channels && (static_cast<int>(playbackSampleCount) - inputPosition) > 0) {
             for (int q = 0; q < 2; q++) {
@@ -169,7 +197,7 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
         playbacks.erase(it);
     }
 
-    if (fill) *channelFillMask |= 3;
+    if (fill && channelFillMask) *channelFillMask |= requiredMask;
 }
 
 void PlaybackHandler::appendPlayback(std::string name, SoundFile file) {

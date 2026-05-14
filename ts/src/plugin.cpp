@@ -728,6 +728,17 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
         //process voice
         const auto relativePosition = myPosition.directionTo(clientData->getClientPosition());
         const auto myViewDirection = myData->getViewDirection();
+        static std::chrono::system_clock::time_point last3dTrace;
+        if (std::chrono::system_clock::now() - last3dTrace > std::chrono::seconds(5)) {
+            constexpr float kRadiansToDegrees = 180.0f / 3.14159265358979323846f;
+            const auto relativeRadians = static_cast<float>(relativePosition.toAngle()) - static_cast<float>(myViewDirection.toAngle());
+            const auto relativeDegrees = relativeRadians * kRadiansToDegrees;
+            log_string("TFAR 3D trace channels=" + std::to_string(channels) +
+                " distance=" + std::to_string(distanceFromClient) +
+                " relDeg=" + std::to_string(relativeDegrees) +
+                " voiceVolume=" + std::to_string(voiceVolume), LogLevel_DEBUG);
+            last3dTrace = std::chrono::system_clock::now();
+        }
         //Time differential based on direction
         clientData->effects.getClunk("voice_clunk")->process(sampleBuffer, relativePosition, myViewDirection);//interaural time difference
         //Volume differential based on direction
@@ -916,6 +927,12 @@ void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID,
         return;
 
     ProfileFunction;
+    static int lastPostProcessChannels = -1;
+    if (lastPostProcessChannels != channels) {
+        log_string("TFAR postprocess voice callback channels=" + std::to_string(channels) +
+            " sampleCount=" + std::to_string(sampleCount), LogLevel_DEBUG);
+        lastPostProcessChannels = channels;
+    }
 
     if (channels < 2) {
         std::vector<short> stereo(sampleCount * 2);
