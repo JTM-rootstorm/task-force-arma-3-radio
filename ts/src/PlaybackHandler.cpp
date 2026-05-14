@@ -51,22 +51,6 @@ std::uint32_t normalizeSourceSampleRate(std::uint32_t sourceSampleRate) {
     return sourceSampleRate == 0 ? getTeamSpeakMixerSampleRate() : sourceSampleRate;
 }
 
-#ifndef _WIN32
-bool isRadioCueSound(const SoundFile& file) {
-    const auto& fileName = file.fileName;
-    return fileName.rfind("radio-sounds/sw/", 0) == 0 ||
-           fileName.rfind("radio-sounds/lr/", 0) == 0 ||
-           fileName.rfind("radio-sounds/ab/", 0) == 0 ||
-           fileName.rfind("radio-sounds/dd/", 0) == 0;
-}
-
-bool shouldUseNativeLinuxWavePlayback(const SoundFile& file) {
-    if (std::getenv("TFAR_LINUX_CUSTOM_WAV_MIXER") != nullptr) return false;
-    if (file.type != SoundFile::SoundFileType::PluginFolderFile) return false;
-    return !isRadioCueSound(file);
-}
-#endif
-
 short readStereoSourceSample(const short* samples, size_t frame, uint8_t channels, uint8_t channel) {
     const auto sourceChannel = channels == 1 ? 0 : std::min<std::uint8_t>(channel, channels - 1);
     return samples[(frame * channels) + sourceChannel];
@@ -243,9 +227,6 @@ void PlaybackHandler::appendPlayback(std::string name, SoundFile file, std::vect
 void PlaybackHandler::playWavFile(SoundFile file) {
     if (!Teamspeak::isConnected()) return;
     if (file.type != SoundFile::SoundFileType::PluginFolderFile) return playWavFile(Teamspeak::getCurrentServerConnection(), file, 1.0, stereoMode::stereo);
-#ifndef _WIN32
-    if (!shouldUseNativeLinuxWavePlayback(file)) return playWavFile(Teamspeak::getCurrentServerConnection(), file, 1.0, stereoMode::stereo);
-#endif
     Teamspeak::playWavFile(file.getFullPath());
 }
 
@@ -255,7 +236,7 @@ void PlaybackHandler::playWavFile(TSServerID serverConnectionHandlerID, SoundFil
     if (!Teamspeak::isConnected(serverConnectionHandlerID)) return;
 
 #ifndef _WIN32
-    if (shouldUseNativeLinuxWavePlayback(file)) {
+    if (file.type == SoundFile::SoundFileType::PluginFolderFile && std::getenv("TFAR_LINUX_CUSTOM_WAV_MIXER") == nullptr) {
         Teamspeak::playWavFile(file.getFullPath());
         return;
     }

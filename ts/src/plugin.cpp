@@ -596,6 +596,21 @@ void ts3plugin_onEditMixedPlaybackVoiceDataEvent(uint64 serverConnectionHandlerI
     TFAR::getPlaybackHandler()->onEditMixedPlaybackVoiceDataEvent(samples, sampleCount, channels, channelSpeakerArray, channelFillMask);
 }
 
+void markStereoChannelsFilled(int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask) {
+    if (!channelFillMask || channels < 2) return;
+
+    auto mask = static_cast<unsigned int>(SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT);
+    if (channelSpeakerArray) {
+        for (int index = 0; index < channels; ++index) {
+            const auto speaker = channelSpeakerArray[index];
+            if (speaker & (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_HEADPHONES_LEFT | SPEAKER_HEADPHONES_RIGHT)) {
+                mask |= speaker;
+            }
+        }
+    }
+    *channelFillMask |= mask;
+}
+
 #define LOG3DMUTE(x)  clientData->circularLog(x);
 
 void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID, short* samples, int sampleCount, int channels, bool isFromMicrophone = false) {
@@ -891,7 +906,7 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
 
 //packet receive -> decode -> onEditPlaybackVoiceDataEvent -> 3D positioning -> onEditPostProcessVoiceDataEvent -> mixing -> onEditMixedPlaybackVoiceDataEvent -> speaker output
 //Data from other clients to us. After 3D processing
-void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID, anyID clientID, short* samples, int sampleCount, int channels, const unsigned int*, unsigned int*) {
+void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID, anyID clientID, short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask) {
 
 
     //auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(serverConnectionHandlerID);
@@ -912,7 +927,9 @@ void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID,
 
     ProfileFunction;
 
-    if (channels != 2) {
+    if (channels < 2) {
+        processVoiceData(serverConnectionHandlerID, clientID, samples, sampleCount, channels);
+    } else if (channels != 2) {
         short* stereo = new short[sampleCount * 2];
         for (auto q = 0; q < sampleCount; q++) {
             for (auto g = 0; g < 2; g++)
@@ -927,8 +944,10 @@ void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID,
                 samples[q * channels + g] = 0;
         }
         delete[] stereo;
+        markStereoChannelsFilled(channels, channelSpeakerArray, channelFillMask);
     } else {
         processVoiceData(serverConnectionHandlerID, clientID, samples, sampleCount, 2);
+        markStereoChannelsFilled(channels, channelSpeakerArray, channelFillMask);
     }
 }
 
