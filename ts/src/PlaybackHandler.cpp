@@ -21,6 +21,7 @@ namespace {
 
 constexpr unsigned int kFrontStereoMask = 0x1u | 0x2u;
 constexpr unsigned int kMonoSpeakerMask = 0x40000000u;
+constexpr unsigned int kKnownPlaybackMask = kFrontStereoMask | kMonoSpeakerMask;
 
 #ifdef _WIN32
 constexpr std::uint32_t kTeamSpeakMixerSampleRate = 48000;
@@ -143,7 +144,7 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
     }
     const auto filledMask = channelFillMask ? *channelFillMask : 0u;
     const auto requiredMask = channels == 1 ? kMonoSpeakerMask : kFrontStereoMask;
-    if ((filledMask & requiredMask) == 0) {
+    if ((filledMask & kKnownPlaybackMask) == 0) {
         memset(samples, 0, sampleCount * channels * sizeof(short));
     }
     for (auto& [name,playback] : playbacks) {
