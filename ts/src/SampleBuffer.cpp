@@ -7,6 +7,7 @@ void SampleBufferT<short>::applyStereoGain(float gainFrontLeft, float gainFrontR
     auto sampleCount = getSampleCount();
     auto channels = getChannels();
     size_t leftOver = sampleCount * channels;
+#ifdef _WIN32
     if (CAN_USE_SSE_ON(begin())) {
         //Can use SSE and memory is correctly aligned
         leftOver = (sampleCount * channels) % 8;
@@ -16,6 +17,7 @@ void SampleBufferT<short>::applyStereoGain(float gainFrontLeft, float gainFrontR
         xmm3 = _mm_loadu_ps(multiplier);
         helpers::shortFloatMultEx(begin(), (sampleCount * channels) - leftOver, xmm3);
     }
+#endif
     for (size_t i = sampleCount * channels - leftOver; i < sampleCount * channels; i += channels) {
         (*this)[i] = static_cast<short>((*this)[i] * gainFrontLeft);
         (*this)[i + 1] = static_cast<short>((*this)[i + 1] * gainFrontRight);

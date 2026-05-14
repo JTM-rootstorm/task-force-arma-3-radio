@@ -138,8 +138,8 @@ void PlaybackHandler::onEditMixedPlaybackVoiceDataEvent(short * samples, int sam
     std::vector<std::string> to_remove;
     static int lastMixedPlaybackChannels = -1;
     if (lastMixedPlaybackChannels != channels) {
-        log_string("TFAR mixed playback callback channels=" + std::to_string(channels) +
-            " sampleCount=" + std::to_string(sampleCount), LogLevel_INFO);
+        Logger::log(LoggerTypes::pluginCommands, "TFAR_TRACE mixedPlayback channels=" + std::to_string(channels) +
+            " sampleCount=" + std::to_string(sampleCount));
         lastMixedPlaybackChannels = channels;
     }
     const auto filledMask = channelFillMask ? *channelFillMask : 0u;
