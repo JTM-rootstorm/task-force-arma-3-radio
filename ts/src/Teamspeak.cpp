@@ -738,18 +738,32 @@ std::string Teamspeak::getClientNickname(TSServerID serverConnectionHandlerID, T
     return "";
 }
 
-void Teamspeak::setMyClient3DPosition(TSServerID serverConnectionHandlerID, Position3D pos) {
+namespace {
+TS3_VECTOR toTeamSpeak3D(Position3D pos) {
+    const auto [x, y, z] = pos.get();
+    return TS3_VECTOR{ x, z, y };
+}
+
+TS3_VECTOR toTeamSpeak3D(Direction3D direction) {
+    const auto [x, y, z] = direction.get();
+    return TS3_VECTOR{ x, z, y };
+}
+}
+
+void Teamspeak::setMyClient3DPosition(TSServerID serverConnectionHandlerID, Position3D pos, Direction3D direction) {
 
     DWORD error;
-    (void)pos;
-    if ((error = ts3Functions.systemset3DListenerAttributes(serverConnectionHandlerID.baseType(), Position3D(), nullptr, nullptr)) != ERROR_ok) {
-        log("can't center listener", error);
+    auto tsPosition = toTeamSpeak3D(pos);
+    auto tsForward = toTeamSpeak3D(direction);
+    TS3_VECTOR tsUp{ 0.0f, 1.0f, 0.0f };
+    if ((error = ts3Functions.systemset3DListenerAttributes(serverConnectionHandlerID.baseType(), &tsPosition, &tsForward, &tsUp)) != ERROR_ok) {
+        log("can't update listener 3D attributes", error);
     }
 }
 
 void Teamspeak::setClient3DPosition(TSServerID serverConnectionHandlerID, TSClientID clientId, Position3D pos) {
-    (void)pos;
-    if (DWORD error = ts3Functions.channelset3DAttributes(serverConnectionHandlerID.baseType(), clientId.baseType(), Position3D()); error != ERROR_ok) {
+    auto tsPosition = toTeamSpeak3D(pos);
+    if (DWORD error = ts3Functions.channelset3DAttributes(serverConnectionHandlerID.baseType(), clientId.baseType(), &tsPosition); error != ERROR_ok) {
         //We don't really care.. so don't spam our users
         //if (error != ERROR_client_invalid_id) //can happen if client disconnected while playing
         //log("can't center client", error);

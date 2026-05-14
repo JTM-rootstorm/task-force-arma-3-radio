@@ -637,7 +637,7 @@ void CommandProcessor::processUnitPosition(TSServerID serverConnection, unitPosi
     //bool clientTalkingOnRadio = (clientData->currentTransmittingTangentOverType != sendingRadioType::LISTEN_TO_NONE) || clientData->clientTalkingNow;
 
     if (packet.myData) {
-        Teamspeak::setMyClient3DPosition(serverConnection, packet.position);
+        Teamspeak::setMyClient3DPosition(serverConnection, packet.position, packet.viewDirection);
     } else {
         setGameClientMuteStatus(serverConnection, clientData->clientId);
         Teamspeak::setClient3DPosition(serverConnection, clientData->clientId, packet.position);

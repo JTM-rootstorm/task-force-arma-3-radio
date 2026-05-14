@@ -736,7 +736,7 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
             log_string("TFAR 3D trace channels=" + std::to_string(channels) +
                 " distance=" + std::to_string(distanceFromClient) +
                 " relDeg=" + std::to_string(relativeDegrees) +
-                " voiceVolume=" + std::to_string(voiceVolume), LogLevel_DEBUG);
+                " voiceVolume=" + std::to_string(voiceVolume), LogLevel_INFO);
             last3dTrace = std::chrono::system_clock::now();
         }
         //Time differential based on direction
@@ -930,7 +930,7 @@ void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverConnectionHandlerID,
     static int lastPostProcessChannels = -1;
     if (lastPostProcessChannels != channels) {
         log_string("TFAR postprocess voice callback channels=" + std::to_string(channels) +
-            " sampleCount=" + std::to_string(sampleCount), LogLevel_DEBUG);
+            " sampleCount=" + std::to_string(sampleCount), LogLevel_INFO);
         lastPostProcessChannels = channels;
     }
 
