@@ -57,13 +57,16 @@ public:
 
 class CircularLogger : public ILogger {
 public:
-    explicit CircularLogger(uint32_t _messageCount) : messageCount(_messageCount) {};
+    explicit CircularLogger(uint32_t messageCount) : messages(messageCount), messageCount(messageCount) {};
     virtual ~CircularLogger() = default;
 
     void log(const std::string& message) override;
     void log(const std::string& message, LogLevel _loglevel) override;
 
-    std::vector <std::string> messages;
+    std::vector<std::string> snapshot() const;
+private:
+    mutable std::mutex mutex;
+    std::vector<std::string> messages;
     uint32_t offset{0};
     uint32_t messageCount;
 };
@@ -93,4 +96,5 @@ private:
     void _log(LoggerTypes type, const std::string& message, LogLevel _loglevel) const;
     static Logger& getInstance() { static Logger log; return log; }
     std::map<LoggerTypes, std::vector<std::shared_ptr<ILogger>>> registeredLoggers;
+    mutable std::mutex registryMutex;
 };

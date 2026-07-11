@@ -38,8 +38,21 @@ void TeamspeakLogger::log(const std::string& message, LogLevel _loglevel) {
 }
 
 void CircularLogger::log(const std::string& message) {
+	if (messageCount == 0) return;
+	std::lock_guard<std::mutex> lock(mutex);
     messages[offset] = message;
-    if (++offset > messageCount) offset = 0;
+	offset = (offset + 1) % messageCount;
+}
+
+std::vector<std::string> CircularLogger::snapshot() const {
+	std::lock_guard<std::mutex> lock(mutex);
+	std::vector<std::string> result;
+	result.reserve(messages.size());
+	for (std::size_t index = 0; index < messages.size(); ++index) {
+		const auto& message = messages[(offset + index) % messages.size()];
+		if (!message.empty()) result.push_back(message);
+	}
+	return result;
 }
 
 void CircularLogger::log(const std::string& message, LogLevel _loglevel) {
@@ -66,6 +79,7 @@ void Logger::log(LoggerTypes type, const std::string & message, LogLevel _loglev
 }
 
 std::vector<std::shared_ptr<ILogger>> Logger::getLogger(LoggerTypes type) {
+	std::lock_guard<std::mutex> lock(getInstance().registryMutex);
     const auto found = getInstance().registeredLoggers.find(type);
     if (found != getInstance().registeredLoggers.end())
         return found->second;
@@ -73,25 +87,24 @@ std::vector<std::shared_ptr<ILogger>> Logger::getLogger(LoggerTypes type) {
 }
 
 void Logger::_registerLogger(LoggerTypes type, std::shared_ptr<ILogger> logger) {
+	std::lock_guard<std::mutex> lock(registryMutex);
     registeredLoggers[type].emplace_back(logger);
 }
 
 void Logger::_log(LoggerTypes type, const std::string& message) const {
-    const auto found = registeredLoggers.find(type);
-    if (found != registeredLoggers.end()) {
-        for (const std::shared_ptr<ILogger>& it : registeredLoggers.at(type)) {
-            it->log(message.back() == '\n' ? message : message + '\n');
-        }
+	const auto loggers = getLogger(type);
+	const auto formatted = !message.empty() && message.back() == '\n' ? message : message + '\n';
+    for (const auto& logger : loggers) {
+		logger->log(formatted);
     }
     //If not found exit silently
 }
 
 void Logger::_log(LoggerTypes type, const std::string& message, LogLevel _loglevel) const {
-    const auto found = registeredLoggers.find(type);
-    if (found != registeredLoggers.end()) {
-        for (const std::shared_ptr<ILogger>& it : registeredLoggers.at(type)) {
-            it->log(message.back() == '\n' ? message : message + '\n', _loglevel);
-        }
+	const auto loggers = getLogger(type);
+	const auto formatted = !message.empty() && message.back() == '\n' ? message : message + '\n';
+    for (const auto& logger : loggers) {
+		logger->log(formatted, _loglevel);
     }
     //If not found exit silently
 }
