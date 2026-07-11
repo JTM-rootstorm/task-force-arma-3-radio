@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(tfar_linux_bridge LANGUAGES C CXX)
 
+find_package(Threads REQUIRED)
+
 option(TFAR_LINUX_PLUGIN "Build the experimental native Linux TeamSpeak bridge plugin" ON)
 option(TFAR_BRIDGE_PROTOCOL_TESTS "Build TFAR bridge protocol smoke tests" ON)
 option(TFAR_REQUIRE_BRIDGE_TOKEN "Require bridge token in the Linux bridge server" OFF)
@@ -18,6 +20,19 @@ if(TFAR_BRIDGE_PROTOCOL_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
     add_test(NAME tfar_bridge_protocol_smoke COMMAND tfar_bridge_protocol_smoke)
+    if(NOT WIN32)
+        add_executable(tfar_linux_bridge_integration
+            ../tests/linux_bridge_integration.cpp
+            src/transport/LinuxBridgeServer.cpp
+            src/platform/Platform.cpp
+        )
+        target_include_directories(tfar_linux_bridge_integration PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/..
+        )
+        target_link_libraries(tfar_linux_bridge_integration PRIVATE Threads::Threads)
+        add_test(NAME tfar_linux_bridge_integration COMMAND tfar_linux_bridge_integration)
+    endif()
 endif()
 
 if(TFAR_LINUX_PLUGIN)
@@ -111,7 +126,7 @@ if(TFAR_LINUX_PLUGIN)
         ${CMAKE_CURRENT_BINARY_DIR}/compat-include
         ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
-    target_link_libraries(TFAR_linux_x64 PRIVATE pthread)
+    target_link_libraries(TFAR_linux_x64 PRIVATE Threads::Threads)
     set_target_properties(TFAR_linux_x64 PROPERTIES
         PREFIX ""
         # TeamSpeak derives the plugin-command namespace from the plugin file

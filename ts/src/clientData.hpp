@@ -350,6 +350,15 @@ public:
     void addModificationLog(std::string mod);
     std::vector<std::string> getModificationLog() const;
     void circularLog(const std::string& message);
+    std::pair<bool, std::chrono::system_clock::time_point> getPluginEnabledState() const {
+        LockGuard_shared lock(m_lock);
+        return { pluginEnabled, pluginEnabledCheck };
+    }
+    void setPluginEnabledState(bool enabled, const std::chrono::system_clock::time_point& checkTime) {
+        LockGuard_exclusive lock(m_lock);
+        pluginEnabled = enabled;
+        pluginEnabledCheck = checkTime;
+    }
 
     void verboseDataLog(std::ostream& str);
 

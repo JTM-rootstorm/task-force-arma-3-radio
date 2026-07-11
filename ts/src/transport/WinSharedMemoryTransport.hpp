@@ -16,7 +16,7 @@ public:
     void shutdown() override;
     bool isConnected() const override;
     std::optional<GameCommand> receiveCommand(std::chrono::milliseconds timeout) override;
-    bool sendResponse(std::uint32_t sequence, const std::string& response) override;
+    bool sendResponse(std::uint32_t sequence, const std::string& response, std::uint64_t sessionGeneration = 0) override;
     void setConfigNeedsRefresh(bool needsRefresh) override;
 
 private:

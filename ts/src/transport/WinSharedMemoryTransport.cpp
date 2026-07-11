@@ -36,7 +36,7 @@ std::optional<GameCommand> WinSharedMemoryTransport::receiveCommand(std::chrono:
     return command;
 }
 
-bool WinSharedMemoryTransport::sendResponse(std::uint32_t, const std::string& response) {
+bool WinSharedMemoryTransport::sendResponse(std::uint32_t, const std::string& response, std::uint64_t) {
     return handler_.sendData(response);
 }
 

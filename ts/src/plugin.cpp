@@ -13,6 +13,7 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 #include "public_rare_definitions.h"
 #include "ts3_functions.h"
 #include "plugin.h"
@@ -82,13 +83,17 @@ void requestRemoteVolumeStatusIfDue(TSServerID serverId, TSClientID clientId) {
     if (!myId || clientId == myId) return;
 
     static std::map<std::string, std::chrono::system_clock::time_point> lastVolumeRequest;
+    static std::mutex lastVolumeRequestMutex;
     const auto key = std::to_string(serverId.baseType()) + ":" + std::to_string(clientId.baseType());
     const auto now = std::chrono::system_clock::now();
-    const auto found = lastVolumeRequest.find(key);
-    if (found != lastVolumeRequest.end() && now - found->second < 30s) {
-        return;
+    {
+        std::lock_guard<std::mutex> lock(lastVolumeRequestMutex);
+        const auto found = lastVolumeRequest.find(key);
+        if (found != lastVolumeRequest.end() && now - found->second < 30s) {
+            return;
+        }
+        lastVolumeRequest[key] = now;
     }
-    lastVolumeRequest[key] = now;
 
     const auto command = "REQVOL\t" + std::to_string(myId.baseType());
     Teamspeak::sendPluginCommand(serverId, TFAR::getInstance().getPluginID(), command, PluginCommandTarget_CLIENT, { clientId });
@@ -293,7 +298,7 @@ void PipeThread() {
                 //gameCommandIn.reset();
                 const auto start = std::chrono::steady_clock::now();
                 const auto commandResult = TFAR::getCommandProcessor()->processCommand(commandText);
-                transport->sendResponse(command->sequence, commandResult);
+                transport->sendResponse(command->sequence, commandResult, command->sessionGeneration);
 #ifdef TFAR_ENABLE_BRIDGE_VERBOSE_LOGS
                 const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
                 log_string("bridge command seq=" + std::to_string(command->sequence) +
@@ -479,27 +484,27 @@ bool isPluginEnabledForUser(TSServerID serverConnectionHandlerID, TSClientID cli
     auto clientData = clientDataDir->getClientData(clientID);
     if (!clientData) return false;
 
+    const auto currentTime = std::chrono::system_clock::now();
     if (clientID == Teamspeak::getMyId(serverConnectionHandlerID)) {
-        clientData->pluginEnabled = true;
-        clientData->pluginEnabledCheck = std::chrono::system_clock::now();
+        clientData->setPluginEnabledState(true, currentTime);
         return true;
     }
 
-    auto currentTime = std::chrono::system_clock::now();
     bool result;
+    const auto [pluginEnabled, pluginEnabledCheck] = clientData->getPluginEnabledState();
 
-    if (currentTime - clientData->pluginEnabledCheck < 10s) {
-        result = clientData->pluginEnabled;
+    if (currentTime - pluginEnabledCheck < 10s) {
+        result = pluginEnabled;
     } else {
         const auto clientInfo = Teamspeak::getMetaData(Teamspeak::getCurrentServerConnection(), clientID);
         if (clientInfo.empty()) {
             return false;
         }
         std::string shouldStartWith = getConnectionStatusInfo(true, true, false);  //slow
-        result = clientData->pluginEnabled = helpers::startsWith(shouldStartWith, clientInfo);
+        result = helpers::startsWith(shouldStartWith, clientInfo);
     }
 
-    clientData->pluginEnabledCheck = currentTime;
+    clientData->setPluginEnabledState(result, currentTime);
     if (result) {
         requestRemoteVolumeStatusIfDue(serverConnectionHandlerID, clientID);
     }
@@ -527,7 +532,7 @@ void processVoiceData(TSServerID serverConnectionHandlerID, TSClientID clientID,
     ProfileFunction;
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _mm_setcsr((_mm_getcsr() & ~0x0040) | (0x0040));//_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-    static std::chrono::system_clock::time_point last_no_info;
+    thread_local std::chrono::system_clock::time_point last_no_info;
     const auto myId = Teamspeak::getMyId(serverConnectionHandlerID);
     auto myNickname = Teamspeak::getMyNickname(serverConnectionHandlerID);
 
@@ -1021,8 +1026,7 @@ void processTangentPress(TSServerID serverId, const std::vector<std::string_view
 
 
 
-    senderClientData->pluginEnabled = true;//He just sent us a Plugin command... Either he has Plugin enabled or he is a hacker
-    senderClientData->pluginEnabledCheck = time;
+    senderClientData->setPluginEnabledState(true, time);//He just sent us a Plugin command... Either he has Plugin enabled or he is a hacker
     senderClientData->setLastPositionUpdateTime(time);
     senderClientData->setCurrentTransmittingSubtype(subtype);
 
@@ -1142,8 +1146,7 @@ void processPluginCommand(std::string_view command) {
         const bool myCommand = clientData == clientDataDir->myClientData;
 
         clientData->voiceVolume = std::atoi(volume.data());
-        clientData->pluginEnabled = true;
-        clientData->pluginEnabledCheck = std::chrono::system_clock::now();
+        clientData->setPluginEnabledState(true, std::chrono::system_clock::now());
         clientData->clientTalkingNow = start;
         if (!myCommand) {
             setGameClientMuteStatus(serverId, clientData->clientId);

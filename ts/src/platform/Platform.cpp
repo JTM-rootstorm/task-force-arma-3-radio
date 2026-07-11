@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <cstdio>
 #include <thread>
 
 #ifdef _WIN32
@@ -18,7 +19,7 @@ void debugLog(const std::string& message) {
 #ifdef _WIN32
     OutputDebugStringA(message.c_str());
 #else
-    (void)message;
+    std::fputs(message.c_str(), stderr);
 #endif
 }
 
