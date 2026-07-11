@@ -11,7 +11,7 @@ namespace tfar {
 namespace bridge {
 
 constexpr std::uint32_t kMagic = 0x52414654u;
-constexpr std::uint16_t kVersion = 1;
+constexpr std::uint16_t kVersion = 2;
 constexpr std::uint32_t kDefaultPort = 47333;
 constexpr std::uint32_t kMaxPayloadBytes = 64u * 1024u;
 constexpr std::size_t kHeaderSize = 16;
@@ -121,10 +121,6 @@ inline std::vector<std::uint8_t> encodeFrame(Type type, std::uint32_t sequence, 
     frame.insert(frame.end(), encodedHeader.begin(), encodedHeader.end());
     frame.insert(frame.end(), payload.begin(), payload.end());
     return frame;
-}
-
-inline bool containsToken(const std::string& helloPayload, const std::string& token) {
-    return token.empty() || helloPayload.find("\"token\":\"" + token + "\"") != std::string::npos;
 }
 
 } // namespace bridge
