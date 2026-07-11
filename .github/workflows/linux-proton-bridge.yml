@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -S ts -B build/tfar-linux -DTFAR_LINUX_PLUGIN=ON -DTFAR_BRIDGE_PROTOCOL_TESTS=ON
+        run: cmake -S ts -B build/tfar-linux -DTFAR_LINUX_PLUGIN=ON -DTFAR_BRIDGE_PROTOCOL_TESTS=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build/tfar-linux --config Release
       - name: Test

@@ -26,7 +26,7 @@ ctest --test-dir build/tfar-linux --output-on-failure
 Expected artifact:
 
 ```text
-build/tfar-linux/TFAR_win64_linux_amd64.so
+build/tfar-linux/TFAR_linux_amd64.so
 ```
 
 ## Export Checks
@@ -83,7 +83,7 @@ task_force_radio_pipe_x64.dll
 tfar_proton_bridge_x64.dll
 ```
 
-Install `TFAR_win64_linux_amd64.so` into the native Linux TeamSpeak plugin directory, and remove or disable any stale `TFAR_linux_x64.so` or `TFAR_win64_x64.so`. The `TFAR_win64` command namespace is required for mixed Linux/Windows speaking indicators and radio plugin commands. For Flatpak TeamSpeak, the plugin directory is usually:
+Install `TFAR_linux_amd64.so` into the native Linux TeamSpeak plugin directory, and remove or disable any stale `TFAR_linux_x64.so` or `TFAR_win64_x64.so`. The canonical Linux filename is live-proven for mixed Linux/Windows sessions. For Flatpak TeamSpeak, the plugin directory is usually:
 
 ```text
 ~/.var/app/com.teamspeak.TeamSpeak3/.ts3client/plugins/

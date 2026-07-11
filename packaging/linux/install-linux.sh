@@ -4,13 +4,25 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TS3_PLUGIN_DIR="${TFAR_TS3_PLUGIN_DIR:-}"
 ARMA_MOD_DIR="${TFAR_ARMA_MOD_DIR:-}"
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then DRY_RUN=1; fi
+TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
 backup_copy() {
     local src="$1"
     local dest="$2"
+    [[ -f "$src" ]] || { echo "Missing package artifact: $src" >&2; exit 1; }
+	if [[ -f "$dest" ]] && cmp -s "$src" "$dest"; then
+		echo "Unchanged: $dest"
+		return
+	fi
+	if [[ "$DRY_RUN" -eq 1 ]]; then
+		echo "Would install: $src -> $dest"
+		return
+	fi
     mkdir -p "$(dirname "$dest")"
     if [[ -e "$dest" ]]; then
-        cp -a "$dest" "$dest.bak.$(date +%Y%m%d%H%M%S)"
+		cp -a "$dest" "$dest.bak.$TIMESTAMP"
     fi
     cp -a "$src" "$dest"
 }
@@ -30,19 +42,17 @@ if [[ -z "$TS3_PLUGIN_DIR" ]]; then
 fi
 
 echo "Installing TeamSpeak plugin to: $TS3_PLUGIN_DIR"
-if [[ -e "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" ]]; then
-    mv "$TS3_PLUGIN_DIR/TFAR_linux_x64.so" "$TS3_PLUGIN_DIR/TFAR_linux_x64.so.disabled.$(date +%Y%m%d%H%M%S)"
-fi
-if [[ -e "$TS3_PLUGIN_DIR/TFAR_win64_x64.so" ]]; then
-    mv "$TS3_PLUGIN_DIR/TFAR_win64_x64.so" "$TS3_PLUGIN_DIR/TFAR_win64_x64.so.disabled.$(date +%Y%m%d%H%M%S)"
-fi
-backup_copy "$ROOT_DIR/plugins/linux/TFAR_win64_linux_amd64.so" "$TS3_PLUGIN_DIR/TFAR_win64_linux_amd64.so"
+for stale in TFAR_linux_x64.so TFAR_win64_x64.so TFAR_win64_linux_amd64.so; do
+	if [[ -e "$TS3_PLUGIN_DIR/$stale" ]]; then echo "Warning: stale conflicting plugin found: $TS3_PLUGIN_DIR/$stale" >&2; fi
+done
+backup_copy "$ROOT_DIR/plugins/linux/TFAR_linux_amd64.so" "$TS3_PLUGIN_DIR/TFAR_linux_amd64.so"
 
 if [[ -n "$ARMA_MOD_DIR" ]]; then
-    echo "Installing Proton bridge DLL under: $ARMA_MOD_DIR"
+	echo "Installing dispatcher and Proton payload under: $ARMA_MOD_DIR"
     backup_copy "$ROOT_DIR/arma-extension/task_force_radio_pipe_x64.dll" "$ARMA_MOD_DIR/task_force_radio_pipe_x64.dll"
+	backup_copy "$ROOT_DIR/arma-extension/tfar_proton_bridge_x64.dll" "$ARMA_MOD_DIR/tfar_proton_bridge_x64.dll"
 else
-    echo "TFAR_ARMA_MOD_DIR not set; skipping Proton bridge DLL install."
+    echo "TFAR_ARMA_MOD_DIR not set; skipping dispatcher and Proton payload install."
 fi
 
 echo "Done. Restart TeamSpeak, then launch Arma 3 under Proton."

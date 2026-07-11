@@ -3,7 +3,7 @@
 This package is expected to contain:
 
 ```text
-plugins/linux/TFAR_win64_linux_amd64.so
+plugins/linux/TFAR_linux_amd64.so
 arma-extension/task_force_radio_pipe_x64.dll
 resources/radio-sounds/
 docs/bridge-protocol.md
@@ -13,7 +13,7 @@ install-linux.sh
 
 Install the TeamSpeak plugin into your native Linux TeamSpeak 3 plugin directory, then install the Proton bridge DLL into the TFAR Arma mod extension path used by Arma 3 under Proton.
 
-The Linux plugin is named `TFAR_win64_linux_amd64.so` on purpose so TeamSpeak registers the command namespace as `TFAR_win64`, matching Windows TFAR clients. Remove stale `TFAR_linux_x64.so` and `TFAR_win64_x64.so` copies before testing mixed sessions.
+`TFAR_linux_amd64.so` is the canonical, live-proven Linux TeamSpeak artifact. Stale alternate plugin filenames should be removed before testing mixed sessions.
 
 Environment variables:
 

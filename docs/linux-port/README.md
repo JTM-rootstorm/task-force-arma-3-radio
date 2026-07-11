@@ -11,7 +11,7 @@ Arma 3 under Proton
   -> task_force_radio_pipe_x64.dll runtime loader
   -> adjacent tfar_proton_bridge_x64.dll
   -> TCP bridge on 127.0.0.1:47333
-  -> TFAR_win64_linux_amd64.so native TeamSpeak plugin bridge endpoint
+  -> TFAR_linux_amd64.so native TeamSpeak plugin bridge endpoint
   -> existing TFAR command processor and audio/radio logic
 ```
 
@@ -33,7 +33,7 @@ The bridge preserves existing TFAR command strings. Async commands keep the lega
 - `extensions/tfar_proton_bridge/SocketTransfer.*` implements the Proton-side Winsock client behind the `TFARBridge_*` DLL ABI.
 - `ts/CMakeLists.txt` builds protocol smoke tests and an experimental Linux plugin with the TFAR command/audio runtime linked in.
 
-The experimental Linux target now packages the full TFAR command processor, audio/radio runtime, bridge server, Clunk, DSP filters, and SQLite into a native Linux TeamSpeak plugin. The output file is `TFAR_win64_linux_amd64.so` so TeamSpeak registers plugin commands as `TFAR_win64`, matching existing Windows clients.
+The experimental Linux target now packages the full TFAR command processor, audio/radio runtime, bridge server, Clunk, DSP filters, and SQLite into a native Linux TeamSpeak plugin. The output file is `TFAR_linux_amd64.so` so TeamSpeak registers plugin commands as `TFAR_win64`, matching existing Windows clients.
 
 The Linux target baseline is TeamSpeak 3 Client 3.6.2, which expects TeamSpeak plugin API 26. The plugin must report API 26 for that client line.
 

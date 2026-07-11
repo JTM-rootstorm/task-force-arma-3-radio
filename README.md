@@ -63,3 +63,10 @@ If this plugin ever becomes popular, it would be great if we could avoid having 
 
 ### Contributors
 See CONTRIBUTORS.md
+## Experimental Linux/Proton support
+
+This branch includes a native Linux TeamSpeak plugin and a loopback bridge for
+Arma running under Proton. Start with [the Linux port documentation](docs/linux-port/README.md),
+including the [artifact contract](docs/linux-port/artifact-contract.md),
+[runtime loader behavior](docs/linux-port/runtime-loader.md), and
+[troubleshooting guide](docs/linux-port/troubleshooting.md).
