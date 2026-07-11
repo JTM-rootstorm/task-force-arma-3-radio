@@ -19,8 +19,8 @@ namespace {
 constexpr size_t kMaxLowPriorityCommandBacklog = 300;
 }
 
-volatile bool skipTangentOff = false;
-volatile bool waitingForTangentOff = false;
+std::atomic_bool skipTangentOff{ false };
+std::atomic_bool waitingForTangentOff{ false };
 CriticalSectionLock tangentCriticalSection{ "tangentCriticalSection" };
 extern bool isSeriousModeEnabled(TSServerID serverConnectionHandlerID, TSClientID clientId);
 extern void setGameClientMuteStatus(TSServerID serverConnectionHandlerID, TSClientID clientID, std::pair<bool, bool> isOverRadio = { false,false });
@@ -29,11 +29,13 @@ CommandProcessor::CommandProcessor() {
     vadEnabled = Teamspeak::hlp_checkVad();//Needed in case releaseAllTangents is called before the first tangent press
 
     TFAR::getInstance().doDiagReport.connect([this](std::stringstream& diag) {
+		std::lock_guard<std::mutex> lock(theadMutex);
         diag << "CP:\n";
         diag << TS_INDENT << "shouldRun: " << shouldRun << "\n";
         diag << TS_INDENT << "cmdQueueBacklog: " << commandQueue.size() << "\n";
         diag << TS_INDENT << "cmdQueueHighPriorityBacklog: " << highPriorityCommandQueue.size() << "\n";
-        diag << TS_INDENT << "thread: " << myThread->get_id() << "\n";
+		if (myThread) diag << TS_INDENT << "thread: " << myThread->get_id() << "\n";
+		else diag << TS_INDENT << "thread: stopped\n";
     });
 
 
@@ -94,17 +96,20 @@ std::string CommandProcessor::processCommand(const std::string& command) {
     ProfilerLog(command);
     std::vector<std::string_view> tokens; tokens.reserve(28);
     helpers::split(command, '\t', tokens, 2); //may not be used in nickname
+	if (tokens.empty() || tokens[0].empty()) return "UNKNOWN COMMAND";
     const auto gameCommand = toGameCommand(tokens[0], tokens.size());
     if (gameCommand == gameCommand::unknown) return "UNKNOWN COMMAND";
 
 
     switch (gameCommand) {
-        case gameCommand::TS_INFO: return ts_info(tokens[1]);
+        case gameCommand::TS_INFO: if (tokens.size() != 2) return "INVALID COMMAND"; return ts_info(tokens[1]);
         case gameCommand::POS:
+			if (tokens.size() != 2) return "INVALID COMMAND";
             //POS nickname [x,y,z] [viewdirUnitvector(x,y,z)] canSpeak canUseSWRadio canUseLRRadio canUseDDRadio vehicleID terrainInterception voiceVolume objectInterception
             queueCommand(command);//do processing async
             [[fallthrough]];
         case gameCommand::IS_SPEAKING: {
+			if (tokens.size() != 2) return "INVALID COMMAND";
             const auto nickname = convertNickname(tokens[1]);
             const auto clientDataDir = TFAR::getServerDataDirectory()->getClientDataDirectory(Teamspeak::getCurrentServerConnection());
             if (!clientDataDir) return "00";
@@ -122,6 +127,7 @@ std::string CommandProcessor::processCommand(const std::string& command) {
         {
             tokens.clear();
             helpers::split(command, '\t', tokens); // Previously we only split two tokens for performance reasons
+			if (tokens.size() < 2) return "INVALID COMMAND";
 
             std::string result;
             result.reserve((tokens.size() - 1) * 3 + 1);
@@ -171,11 +177,19 @@ std::string CommandProcessor::processCommand(const std::string& command) {
                 return "[]";
             std::stringstream str;
             str << "[";
-            for (auto& it : clientData->receivingFrequencies) {
-                str << '"' << it << "\",";
+            bool first = true;
+            for (const auto& value : clientData->receivingFrequencies) {
+				if (!first) str << ',';
+				first = false;
+				str << '"';
+				for (const char character : value) {
+					if (character == '"' || character == '\\') str << '\\';
+					str << character;
+				}
+				str << '"';
             }
-            str.seekg(-1, std::stringstream::cur);
             str << "]";
+			return str.str();
         }
     }
 
@@ -201,6 +215,8 @@ gameCommand CommandProcessor::toGameCommand(std::string_view textCommand, size_t
             return gameCommand::KILLED;
         case FORCE_COMPILETIME(const_strhash("DFRAME"sv)):
             return gameCommand::DFRAME;
+		case FORCE_COMPILETIME(const_strhash("RECV_FREQS"sv)):
+			return gameCommand::RECV_FREQS;
         case FORCE_COMPILETIME(const_strhash("TRACK"sv)):
             return gameCommand::TRACK;
         case FORCE_COMPILETIME(const_strhash("SPEAKERS"sv)):
@@ -256,6 +272,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
     ProfilerLog(command);
     std::vector<std::string_view> tokens; tokens.reserve(18);
     helpers::split(command, '\t', tokens); //may not be used in nickname
+	if (tokens.empty() || tokens[0].empty()) return;
     const auto gameCommand = toGameCommand(tokens[0], tokens.size());
     if (gameCommand == gameCommand::unknown) return;
     TSServerID currentServerConnectionHandlerID = Teamspeak::getCurrentServerConnection();
@@ -266,6 +283,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
     switch (gameCommand) {
 
         case gameCommand::FREQ: {//async
+			if (tokens.size() < 6) return;
                                  //FREQ, str(_freq), str(_freq_lr)
                                 //_alive, speakVolume, _nickname, 
                                 //waves, TF_terrain_interception_coefficient, _globalVolume,
@@ -286,6 +304,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             }
         } return;
         case gameCommand::POS: {
+			if (tokens.size() != 14) return;
             //POS nickname [x,y,z] [viewdirUnitvector(x,y,z)] canSpeak canUseSWRadio canUseLRRadio canUseDDRadio vehicleID terrainInterception voiceVolume objectInterception
             unitPositionPacket packet{
                 convertNickname(tokens[1]),                 //nickname
@@ -306,6 +325,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             processUnitPosition(currentServerConnectionHandlerID, packet);
         } return;
         case gameCommand::KILLED:
+			if (tokens.size() != 2) return;
             processUnitKilled(convertNickname(tokens[1]), currentServerConnectionHandlerID);
             return;
         case gameCommand::TRACK:
@@ -318,6 +338,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             processSpeakers(tokens);
             return;
         case gameCommand::TANGENT: {//async
+			if (tokens.size() < 5 || tokens.size() > 6) return;
                                     //TANGENT, PRESSED/RELEASED, _freq+Radiocode, Range inclusive transmittingdist Multiplicator, Subtype, classname
             auto myClientData = clientDataDir->myClientData;
             if (!myClientData) return; //safety first
@@ -402,6 +423,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             }
         } return;
         case gameCommand::RELEASE_ALL_TANGENTS: {
+			if (tokens.size() != 2) return;
             const auto commandToSend = "RELEASE_ALL_TANGENTS\t" + convertNickname(tokens[1]);
 
             //Need to release tangent in case it's currently pressed else player will hotmic
@@ -413,6 +435,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             std::thread([args]() {process_tangent_off(args); }).detach();
         } return;
         case gameCommand::SETCFG: {//async
+			if (tokens.size() < 3 || tokens.size() > 4) return;
             const auto key = tokens[1];
             const auto value = tokens[2];
             const Setting keyEnum(key);
@@ -443,6 +466,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
             //TFAR::getInstance().onGameDisconnected();
             return;
         case gameCommand::AddRadioTower: {
+			if (tokens.size() != 2) return;
             auto data = helpers::split(tokens[1], 0xA);
             for (auto& element : data) {
                 auto antennaData = helpers::split(element, ';');
@@ -457,6 +481,7 @@ void CommandProcessor::processAsynchronousCommand(const std::string& command) co
         }
 
         case gameCommand::DeleteRadioTower: {
+			if (tokens.size() != 2) return;
             auto data = helpers::split(tokens[1], 0xA);
             for (auto& element : data) {
                 TFAR::getAntennaManager()->removeAntenna(element);

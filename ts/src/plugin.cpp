@@ -53,8 +53,8 @@
 std::thread threadPipeHandle;
 std::thread threadService;
 
-volatile bool exitThread = false;
-volatile bool pipeConnected = false;
+std::atomic_bool exitThread{ false };
+std::atomic_bool pipeConnected{ false };
 
 void log_string(std::string message, LogLevel level) {
     Logger::log(LoggerTypes::teamspeakClientlog, message, level);//Default loglevel is Info
