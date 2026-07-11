@@ -77,30 +77,38 @@ bool BridgeLoader::load() {
 		return false;
 	}
 
-	module_ = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-	if (module_ == nullptr) {
-		module_ = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+	HMODULE module = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+	if (module == nullptr) {
+		module = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
 	}
 
-	if (module_ == nullptr) {
+	if (module == nullptr) {
 		error_ = "LoadLibraryExW failed for bridge DLL";
 		return false;
 	}
 
-	getApiVersion_ = reinterpret_cast<GetApiVersionFn>(GetProcAddress(module_, "TFARBridge_GetApiVersion"));
-	rvExtension_ = reinterpret_cast<RvExtensionFn>(GetProcAddress(module_, "TFARBridge_RVExtension"));
-	shutdown_ = reinterpret_cast<ShutdownFn>(GetProcAddress(module_, "TFARBridge_Shutdown"));
+	const auto getApiVersion = reinterpret_cast<GetApiVersionFn>(GetProcAddress(module, "TFARBridge_GetApiVersion"));
+	const auto rvExtension = reinterpret_cast<RvExtensionFn>(GetProcAddress(module, "TFARBridge_RVExtension"));
+	const auto shutdown = reinterpret_cast<ShutdownFn>(GetProcAddress(module, "TFARBridge_Shutdown"));
 
-	if (getApiVersion_ == nullptr || rvExtension_ == nullptr || shutdown_ == nullptr) {
+	if (getApiVersion == nullptr || rvExtension == nullptr || shutdown == nullptr) {
 		error_ = "bridge DLL is missing required exports";
+		FreeLibrary(module);
+		reset();
 		return false;
 	}
 
-	if (getApiVersion_() != kExpectedBridgeApiVersion) {
+	if (getApiVersion() != kExpectedBridgeApiVersion) {
 		error_ = "bridge DLL API version mismatch";
+		FreeLibrary(module);
+		reset();
 		return false;
 	}
 
+	module_ = module;
+	getApiVersion_ = getApiVersion;
+	rvExtension_ = rvExtension;
+	shutdown_ = shutdown;
 	error_.clear();
 	return true;
 }
@@ -123,6 +131,20 @@ void BridgeLoader::shutdown() {
 	if (shutdown_ != nullptr) {
 		shutdown_();
 	}
+}
+
+void BridgeLoader::unload() {
+	if (shutdown_ != nullptr) shutdown_();
+	HMODULE module = module_;
+	reset();
+	if (module != nullptr) FreeLibrary(module);
+}
+
+void BridgeLoader::reset() {
+	module_ = nullptr;
+	getApiVersion_ = nullptr;
+	rvExtension_ = nullptr;
+	shutdown_ = nullptr;
 }
 
 } // namespace tfar_pipe

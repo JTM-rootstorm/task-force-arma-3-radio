@@ -54,7 +54,7 @@ std::uint16_t parsePort(const std::string& text, std::uint16_t fallback) {
     }
     char* end = nullptr;
     const long port = std::strtol(text.c_str(), &end, 10);
-    if (end == text.c_str() || port <= 0 || port > 65535) {
+    if (end == text.c_str() || *end != '\0' || port <= 0 || port > 65535) {
         return fallback;
     }
     return static_cast<std::uint16_t>(port);
@@ -68,11 +68,15 @@ SocketTransfer::SocketTransfer() {
 }
 
 SocketTransfer::~SocketTransfer() {
+	shutdown();
+	if (winsockStarted_) WSACleanup();
+}
+
+void SocketTransfer::shutdown() {
     stopAsyncWorker();
     disconnect();
-    if (winsockStarted_) {
-        WSACleanup();
-    }
+	std::lock_guard<std::mutex> lock(cachedSyncMutex_);
+	cachedSyncResponses_.clear();
 }
 
 void SocketTransfer::transactMessage(char* output, int outputSize, const char* input) {
@@ -95,20 +99,19 @@ void SocketTransfer::transactMessage(char* output, int outputSize, const char* i
     }
 
     if (async) {
-        const bool isDataFrameCommand = !command.empty() && command.front() == 'D';
-        const bool isMissionEndCommand = !command.empty() && command.front() == 'M';
-        if (!ensureConnected()) {
+        const bool isMissionEndCommand = command == "MISSIONEND";
+		if (!connected_.load()) {
+			ensureAsyncWorker();
+			{
+				std::lock_guard<std::mutex> lock(asyncMutex_);
+				reconnectRequested_ = true;
+			}
+			asyncCv_.notify_one();
             writeOutput(output, outputSize, "Not connected to TeamSpeak");
             return;
         }
         queueAsyncCommand(std::move(command));
-        if (isDataFrameCommand) {
-            writeOutput(output, outputSize, "OK");
-        } else if (isMissionEndCommand) {
-            writeOutput(output, outputSize, "OK");
-        } else {
-            writeOutput(output, outputSize, "OK");
-        }
+        writeOutput(output, outputSize, "OK");
         return;
     }
 
@@ -175,8 +178,7 @@ bool SocketTransfer::connectSocketLocked() {
 
     socket_ = socket;
     const std::string token = bridgeToken();
-    const std::string hello = std::string("{\"client\":\"tfar-arma-extension\",\"protocol\":1,\"token\":\"") + token + "\"}";
-    if (!sendFrame(tfar::bridge::Type::Hello, 0, hello)) {
+    if (!sendFrame(tfar::bridge::Type::Hello, 0, token)) {
         disconnectLocked();
         return false;
     }
@@ -189,6 +191,7 @@ bool SocketTransfer::connectSocketLocked() {
         return false;
     }
 
+	connected_.store(true);
     return true;
 }
 
@@ -202,6 +205,10 @@ void SocketTransfer::disconnectLocked() {
         closesocket(socket_);
         socket_ = INVALID_SOCKET;
     }
+	connected_.store(false);
+	nextSequence_ = 1;
+	std::lock_guard<std::mutex> cacheLock(cachedSyncMutex_);
+	cachedSyncResponses_.clear();
 }
 
 void SocketTransfer::queueAsyncCommand(std::string command) {
@@ -239,7 +246,8 @@ void SocketTransfer::ensureAsyncWorker() {
     if (asyncWorkerStarted_) {
         return;
     }
-    stopAsyncWorker_ = false;
+        stopAsyncWorker_ = false;
+		reconnectRequested_ = false;
     asyncThread_ = std::thread(&SocketTransfer::asyncWorkerLoop, this);
     asyncWorkerStarted_ = true;
 }
@@ -272,11 +280,18 @@ void SocketTransfer::asyncWorkerLoop() {
         {
             std::unique_lock<std::mutex> lock(asyncMutex_);
             asyncCv_.wait(lock, [this]() {
-                return stopAsyncWorker_ || !highPriorityAsyncQueue_.empty() || !cachedSyncQueue_.empty() || !asyncQueue_.empty();
+                return stopAsyncWorker_ || reconnectRequested_ || !highPriorityAsyncQueue_.empty() || !cachedSyncQueue_.empty() || !asyncQueue_.empty();
             });
             if (stopAsyncWorker_) {
                 return;
             }
+			if (reconnectRequested_ && highPriorityAsyncQueue_.empty() && cachedSyncQueue_.empty() && asyncQueue_.empty()) {
+				reconnectRequested_ = false;
+				lock.unlock();
+				std::lock_guard<std::mutex> socketLock(socketMutex_);
+				ensureConnectedLocked();
+				continue;
+			}
             if (!highPriorityAsyncQueue_.empty()) {
                 command = std::move(highPriorityAsyncQueue_.front());
                 highPriorityAsyncQueue_.pop_front();
@@ -310,7 +325,7 @@ void SocketTransfer::asyncWorkerLoop() {
             }
         }
 
-        if (!command.empty() && command.front() == 'M') {
+        if (command == "MISSIONEND") {
             disconnect();
         }
         if (!isHighPriorityAsyncCommand(command)) {
@@ -321,6 +336,7 @@ void SocketTransfer::asyncWorkerLoop() {
 
 bool SocketTransfer::sendSyncCommandLocked(const std::string& command, std::string& response) {
     const std::uint32_t sequence = nextSequence_++;
+	if (nextSequence_ == 0) nextSequence_ = 1;
     tfar::bridge::Type type{};
     std::uint32_t responseSequence = 0;
     return sendFrame(tfar::bridge::Type::SyncCommand, sequence, command) &&

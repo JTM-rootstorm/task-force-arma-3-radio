@@ -20,8 +20,10 @@ public:
 	const std::string& error() const;
 	void callRvExtension(char* output, int outputSize, const char* input);
 	void shutdown();
+	void unload();
 
 private:
+	void reset();
 	HMODULE module_ = nullptr;
 	GetApiVersionFn getApiVersion_ = nullptr;
 	RvExtensionFn rvExtension_ = nullptr;

@@ -5,8 +5,8 @@
 namespace {
 
 SocketTransfer& bridgeTransfer() {
-	static SocketTransfer transfer;
-	return transfer;
+	static SocketTransfer* transfer = new SocketTransfer();
+	return *transfer;
 }
 
 } // namespace
@@ -34,5 +34,5 @@ void __stdcall TFARBridge_RVExtension(char* output, int outputSize, const char* 
 
 extern "C" __declspec(dllexport)
 void __stdcall TFARBridge_Shutdown() {
-	// Reserved for future explicit cleanup. The socket transport is process-lifetime.
+	bridgeTransfer().shutdown();
 }

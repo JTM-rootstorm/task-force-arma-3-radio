@@ -17,7 +17,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			if (isDebugArmaInstance()) pipeName = DEBUG_PIPE_NAME;
 			break;
 		case DLL_PROCESS_DETACH:
-			tfar_pipe::shutdownRuntime();
 			break;
 		case DLL_THREAD_ATTACH:
 		case DLL_THREAD_DETACH:

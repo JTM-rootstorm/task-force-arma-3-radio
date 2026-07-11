@@ -4,6 +4,7 @@
 #include "BridgeProtocol.h"
 
 #include <condition_variable>
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <mutex>
@@ -16,6 +17,7 @@ class SocketTransfer {
 public:
     SocketTransfer();
     ~SocketTransfer();
+    void shutdown();
 
     static void open() {}
     static void close() {}
@@ -49,6 +51,7 @@ private:
     SOCKET socket_ = INVALID_SOCKET;
     std::uint32_t nextSequence_ = 1;
     bool winsockStarted_ = false;
+	std::atomic_bool connected_{ false };
 
     std::mutex asyncMutex_;
     std::condition_variable asyncCv_;
@@ -59,6 +62,7 @@ private:
     std::thread asyncThread_;
     bool asyncWorkerStarted_ = false;
     bool stopAsyncWorker_ = false;
+	bool reconnectRequested_ = false;
 
     std::mutex cachedSyncMutex_;
     std::unordered_map<std::string, std::string> cachedSyncResponses_;
