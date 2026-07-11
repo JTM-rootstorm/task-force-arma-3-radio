@@ -20,6 +20,17 @@ if(TFAR_BRIDGE_PROTOCOL_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
     add_test(NAME tfar_bridge_protocol_smoke COMMAND tfar_bridge_protocol_smoke)
+    add_executable(tfar_sample_buffer_tests
+        ../tests/sample_buffer_tests.cpp
+        src/SampleBuffer.cpp
+    )
+    target_include_directories(tfar_sample_buffer_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/compat-include
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+    add_test(NAME tfar_sample_buffer_tests COMMAND tfar_sample_buffer_tests)
     if(NOT WIN32)
         add_executable(tfar_linux_bridge_integration
             ../tests/linux_bridge_integration.cpp

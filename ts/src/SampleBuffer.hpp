@@ -80,22 +80,16 @@ class SampleBufferT {
             }
             return nullptr;
         }
-        void copyTo(std::shared_ptr<SampleBufferInternal> target) {
-            auto targetSpace = target->getSampleCount();
-            if (targetSpace != getSampleCount()) {
-                //if (auto vec = std::get_if<std::vector<Type>*>(&target->samples)) {
-                //    (*vec)->resize(getSampleCount() * 2);
-                //}
+        bool copyTo(const std::shared_ptr<SampleBufferInternal>& target) {
+            if (target->getSampleCount() != getSampleCount() || target->getChannels() != getChannels()) {
                 if (auto vec = std::get_if<std::vector<Type>>(&target->samples)) {
-                    vec->resize(getSampleCount() * 2);
+                    vec->resize(static_cast<std::size_t>(getSampleCount()) * getChannels());
+                    target->channels = getChannels();
                 }
-                if (auto strct = std::get_if<SampleStruct>(&target->samples)) {
-                    std::vector<Type> vec; 
-                    vec.resize(getSampleCount() * 2);
-                    target->samples = vec;
-                }
+                else return false;
             }
             std::copy(begin(), end(), target->begin());
+            return true;
         }
     };
     std::shared_ptr<SampleBufferInternal> samples;
@@ -142,6 +136,11 @@ public:
         }
         samples->copyTo(outbuf.samples);
         return outbuf;
+    }
+
+    bool copyTo(SampleBufferT& outbuf) const {
+        if (!outbuf.samples) outbuf.samples = std::make_shared<SampleBufferInternal>(getSampleCount(), getChannels());
+        return samples->copyTo(outbuf.samples);
     }
 
     SampleBufferT copy() const {
